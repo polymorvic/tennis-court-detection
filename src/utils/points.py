@@ -76,3 +76,20 @@ class Point[T: (int, float)](Hashable):
     @property
     def as_tuple(self) -> tuple[T, T]:
         return (self._x, self._y)
+    
+    
+def transform_point(
+    point: Union['Intersection', Point], 
+    original_x_start: int, 
+    original_y_start: int, 
+    to_global: bool = True
+    ) -> Point:
+    from .intersections import Intersection
+    
+    if isinstance(point, Intersection):
+        point = point.point
+
+    if to_global:
+        return Point(point.x + original_x_start, point.y + original_y_start)
+    else:
+        return Point(point.x - original_x_start, point.y - original_y_start)
