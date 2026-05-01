@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 import json
-from typing import Type, Self, Literal
+from typing import ClassVar, Self, Literal, Type
 from src.schemas.annotations import ImageAnnotation
 from src.utils.points import Point
 from src.utils.common import ArrayLike
@@ -15,9 +15,11 @@ def transform_keypoint_annotation(
     return [Point(x, y) for x, y in arr] if isinstance(annotation, list) else arr.astype(np.float32)
 
 
-_RawAnnotations = list[dict[Literal['filename', 'data'], str | list]]
+_RawAnnotations = list[dict[Literal["filename", "data"], str | list]]
+
+
 class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
-    annotation_model: Type[AT]
+    annotation_model: ClassVar[Type[ImageAnnotation]] = ImageAnnotation
 
     def __init__(self, 
                  root_dir: Path | str, 
@@ -50,53 +52,101 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
 
 
     def _clean_annotations(self) -> dict[str, AT]:
-        raise NotImplemented
-    
+        cleaned = {}
 
-    def _validate(self) -> None:
-        raise NotImplemented
-    
+        for bundle in self._raw_annotations:
+            file_origin = str(bundle["filename"])
 
-    def validate(self) -> None:
-        self._validate()
-        self._check_duplicates()
-    
+            for task in bundle["data"]:
+                anns = task.get("annotations")
 
-    def _check_duplicates(self) -> None:
-        if not self.cleaned_annotations:
-            raise ValueError('Clean annotations not set')
-        
-        duplicates = set()
-        cleaned_annotations = list(self.cleaned_annotations.values())
-        for i in range(len(cleaned_annotations)):
-            for j in range(len(cleaned_annotations)):
-
-                if i == j:
+                if not anns:
                     continue
 
-                if cleaned_annotations[i] == cleaned_annotations[j]:
-                    duplicates.add(cleaned_annotations[j])
+                result = anns[0].get("result") or []
+                key_points = []
 
-        if not duplicates:
-            print('Nie ma duplikatow')
+                w = h = 0
+                for r in result:
+                    if r.get("type") != "keypointlabels":
+                        continue
 
-        else:
-            print(f'Są duplikaty {len(duplicates)} :')
-            for item in duplicates:
-                print(item.image.name)
+                    val = r.get("value") or {}
+                    lbl = val.get("keypointlabels")
+
+                    if not lbl:
+                        continue
+
+                    if not key_points:
+                        w, h = r["original_width"], r["original_height"]
+
+                    key_points.append(
+                        {"label": lbl[0], "coordinates": {"x": val["x"], "y": val["y"]}}
+                    )
+
+                if not key_points:
+                    continue
+
+                name = self._build_image_name(task)
+                cleaned[name] = self.annotation_model.model_validate(
+                    {
+                        "image": {
+                            "name": name,
+                            "width": w,
+                            "height": h,
+                            "file_origin": file_origin,
+                        },
+                        "key_points": key_points,
+                    }
+                )
+                
+        return cleaned
+    
+
+    # def _validate(self) -> None:
+    #     raise NotImplemented
+    
+
+    # def validate(self) -> None:
+    #     self._validate()
+    #     self._check_duplicates()
+    
+
+    # def _check_duplicates(self) -> None:
+    #     if not self.cleaned_annotations:
+    #         raise ValueError('Clean annotations not set')
+        
+    #     duplicates = set()
+    #     cleaned_annotations = list(self.cleaned_annotations.values())
+    #     for i in range(len(cleaned_annotations)):
+    #         for j in range(len(cleaned_annotations)):
+
+    #             if i == j:
+    #                 continue
+
+    #             if cleaned_annotations[i] == cleaned_annotations[j]:
+    #                 duplicates.add(cleaned_annotations[j])
+
+    #     if not duplicates:
+    #         print('Nie ma duplikatow')
+
+    #     else:
+    #         print(f'Są duplikaty {len(duplicates)} :')
+    #         for item in duplicates:
+    #             print(item.image.name)
 
 
-    def remove_duplicates(self) -> None:
-        if self.cleaned_annotations is None:
-            raise ValueError('Clean annotations not set')
+    # def remove_duplicates(self) -> None:
+    #     if self.cleaned_annotations is None:
+    #         raise ValueError('Clean annotations not set')
 
-        unique_items: dict[str, AT] = {}
-        for img_name, item in self.cleaned_annotations.items():
-            unique_items[img_name] = item
+    #     unique_items: dict[str, AT] = {}
+    #     for img_name, item in self.cleaned_annotations.items():
+    #         unique_items[img_name] = item
 
-        removed_count = len(self.cleaned_annotations) - len(unique_items)
-        self.cleaned_annotations = unique_items
-        print(f'Usunięto {removed_count} duplikatów')
+    #     removed_count = len(self.cleaned_annotations) - len(unique_items)
+    #     self.cleaned_annotations = unique_items
+    #     print(f'Usunięto {removed_count} duplikatów')
 
 
     def _concat_files(self, extension: str = 'json') -> _RawAnnotations:
@@ -109,10 +159,10 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
                 data = json.load(f)
                 raw_annotations.append(
                     {
-                        "filename": json_file.stem,
+                        "filename": json_file.name,
                         "data": data
                     }
-                )  
+                ) 
         return raw_annotations
 
 

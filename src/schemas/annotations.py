@@ -21,7 +21,7 @@ class ImageMetaData(BaseModel):
     name: str
     width: int
     height: int
-    source_file_name: str
+    file_origin: str
 
 
 class KeyPointCoordinates(BaseModel):
