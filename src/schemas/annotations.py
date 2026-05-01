@@ -17,6 +17,11 @@ class TennisCourtKeyPointLabel(StrEnum):
     right_outer_baseline_point = "right_outer_baseline_point"
 
 
+    @classmethod
+    def names(cls):
+        return [item.name for item in cls]
+
+
 class ImageMetaData(BaseModel):
     name: str
     width: int

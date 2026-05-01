@@ -1,7 +1,9 @@
 from pathlib import Path
-import numpy as np
 import json
-from typing import ClassVar, Self, Literal, Type
+from typing import ClassVar, Literal, Self, Type
+
+import matplotlib.pyplot as plt
+import numpy as np
 from src.schemas.annotations import ImageAnnotation, TennisCourtKeyPointLabel
 from src.utils.points import Point
 from src.utils.common import ArrayLike
@@ -11,8 +13,8 @@ def transform_keypoint_annotation(
     img: ArrayLike, 
     annotation: list[list[float]] | np.ndarray
 ) -> list[Point] | np.ndarray:
-    arr = np.array(annotation) * np.array([img.width, img.height]) / 100
-    return [Point(x, y) for x, y in arr] if isinstance(annotation, list) else arr.astype(np.float32)
+    arr = np.array(annotation) * np.array([img.shape[1], img.shape[0]]) / 100
+    return Point.from_iterable(*arr) if isinstance(annotation, list) else arr.astype(np.float32)
 
 
 _RawAnnotations = list[dict[Literal["filename", "data"], str | list]]
@@ -133,7 +135,38 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
 
     def filter_by_image(self, image_name: str) -> AT:
         return self.cleaned_annotations.get(image_name)
-            
+
+    @staticmethod
+    def display_on_img(
+        image: ArrayLike,
+        image_name: str,
+        collection: 'TennisCourtAnnotationCollection',
+        label: str | None = None,
+    ) -> None:
+        if not collection.cleaned_annotations:
+            raise ValueError("Brak cleaned_annotations w kolekcji")
+        
+        ann = collection.cleaned_annotations.get(image_name)
+        if ann is None:
+            raise KeyError(f"Brak adnotacji dla obrazu: {image_name!r}")
+        
+        if label is not None and label not in TennisCourtKeyPointLabel.names():
+            raise ValueError(f"Nieprawidłowa etykieta: {label}:")
+
+        arr = np.asarray(image)
+        h, w = arr.shape[0], arr.shape[1]
+
+        kps = ann.key_points
+        if label is not None:
+            lbl = str(label)
+            kps = [kp for kp in kps if str(kp.label) == lbl]
+
+        plt.imshow(arr)
+        for kp in kps:
+            p = transform_keypoint_annotation(arr, [[kp.coordinates.x, kp.coordinates.y]])
+            plt.scatter(*p.as_int, label=str(kp.label), s=5)
+        plt.show()
+
 
     def save(self, file_path: Path | str) -> None:
         if not self.cleaned_annotations:
