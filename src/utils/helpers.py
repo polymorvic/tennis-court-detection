@@ -4,8 +4,8 @@ import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
 from cvgeomkit.utils.plotting import display_img
-from cvgeomkit.utils.helpers import load_json
-from src.schemas.config import Params
+from cvgeomkit.utils.helpers import load_json, load_yaml
+from src.schemas.config import Params, PicsBlacklist
 from src.utils.validators import check_if_numpy_image, validate_number
 from src.config import get_debug_mode
 
@@ -151,4 +151,9 @@ def straighten(
 def load_process_params(path: Path | str) -> Params:
     data = load_json(path)
     return Params.model_validate(data)
+
+
+def load_pics_blacklist(path: Path | str) -> PicsBlacklist:
+    data = load_yaml(path)
+    return PicsBlacklist.model_validate(data)
 
