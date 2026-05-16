@@ -1,8 +1,11 @@
+from pathlib import Path
 import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
 from cvgeomkit.utils.plotting import display_img
+from cvgeomkit.utils.helpers import load_json
+from src.schemas.config import Params
 from src.utils.validators import check_if_numpy_image, validate_number
 from src.config import get_debug_mode
 
@@ -143,4 +146,9 @@ def straighten(
         cols_img[:, cols_to_fill] = 255
 
     return cv2.bitwise_or(rows_img, cols_img)
+
+
+def load_process_params(path: Path | str) -> Params:
+    data = load_json(path)
+    return Params.model_validate(data)
 
