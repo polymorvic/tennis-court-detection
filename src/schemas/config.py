@@ -60,3 +60,7 @@ class DetectionParams(BaseModel):
 class Params(BaseModel):
     match_params: MatchParams
     detection_params: DetectionParams
+
+
+class PicsBlacklist(BaseModel):
+    blacklist: list[str]
