@@ -2,15 +2,9 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
-from cvgeomkit.utils.plotting import display_img
 
 
 from src.utils.validators import check_if_numpy_image, validate_number
-
-from src.config import get_debug_mode
-
-
-
 
 
 def crop_center_img(
@@ -36,13 +30,10 @@ def net_line_scan_params(height: int) -> tuple[int, int, int]:
 def lines_from_bin_img(
     bin_img: ArrayLike,
     crop_img_width: int,
-    hough_thresh: int = 35,
-    min_line_len_ratio: float = 0.05,
-    min_line_gap: int = 30
+    hough_thresh: int,
+    min_line_len_ratio: float,
+    min_line_gap: int
 ) -> list[Line] | None:
-    
-    # walidacja inputów 
-
     edges = cv2.Canny(bin_img, 25, 100)
     segments = cv2.HoughLinesP(
         edges,
@@ -63,8 +54,7 @@ def get_horizontal_lines(
     lines: list[Line],
     slope_thresh: float = 0.1
 ) -> list[Line] | None:
-    
-    # walidacja inoputów
+    validate_number(slope_thresh, float, 0, 0.2)
     lines = [line for line in lines if line.slope is not None and abs(line.slope) < slope_thresh]
     return lines if lines else None
 
@@ -73,8 +63,7 @@ def straighten_rows(
     bin_img : ArrayLike,
     white_ratio_threshold: float = 0.45
 ) -> ArrayLike:
-    
-    # walidacja inoputów
+    validate_number(white_ratio_threshold, float, 0, 1)
     bin_img = check_if_numpy_image(bin_img)
     bin_img_out = bin_img.copy()
 
