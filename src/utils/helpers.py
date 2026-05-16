@@ -54,7 +54,7 @@ def lines_from_bin_img(
 
 def get_horizontal_lines(
     lines: list[Line],
-    slope_thresh: float = 0.1
+    slope_thresh: float = 0.01
 ) -> list[Line] | None:
     validate_number(slope_thresh, float, 0, 0.2)
     lines = [line for line in lines if line.slope is not None and abs(line.slope) < slope_thresh]
