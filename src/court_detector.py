@@ -27,7 +27,7 @@ class CourtDetector:
         self.center_crop_img_gray = cv2.cvtColor(self.center_crop_img, cv2.COLOR_RGB2GRAY)
 
 
-    def scan_for_service_line(
+    def scan_for_service_lines(
         self,
         service_side: ServiceSide,
         roi_h: int | None = None, 
@@ -62,6 +62,10 @@ class CourtDetector:
                 continue
 
             roi = crop[y:y + roi_h]
+
+            if roi.size == 0:
+                return None
+
             roi_gray = crop_gray[y:y + roi_h]
             roi_bin = process_img_for_service_line_detection(roi_gray, 150, 255)
 
@@ -119,14 +123,14 @@ class CourtDetector:
 
                 display_img(roi_copy)
 
-            if any(x is not None for x in (
-                service_line_local,
-                centre_service_line_local,
-                service_point_local
-            )):
-                
-                break
+            break
 
+        if (
+            service_line_local is None
+            and centre_service_line_local is None
+            and service_point_local is None
+        ):
+            return None
 
         service_line_global = transform_line(
             service_line_local,
