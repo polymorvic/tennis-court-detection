@@ -5,8 +5,8 @@ from typing import ClassVar, Literal, Self, Type
 import matplotlib.pyplot as plt
 import numpy as np
 from src.schemas.annotations import ImageAnnotation, TennisCourtKeyPointLabel
-from src.utils.points import Point
-from src.utils.common import ArrayLike
+from cvgeomkit.geometry.points import Point
+from cvgeomkit.common import ArrayLike
     
 
 def transform_keypoint_annotation(
