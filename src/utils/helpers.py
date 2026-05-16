@@ -51,7 +51,7 @@ def lines_from_bin_img(
     if get_debug_mode():
         display_img(edges)
 
-        img_copy = cv2.cvtColor(bin_img, cv2.COLOR_GRAY2BGR)
+        img_copy = cv2.merge([bin_img, bin_img, bin_img])
         if segments is None:
             for segment in segments:
                 x1, y1, x2, y2 = segment[0]
@@ -59,6 +59,7 @@ def lines_from_bin_img(
         display_img(img_copy)
 
     if segments is None:
+         print('nic')
          return
     
     return [Line.from_hough_line(*segment) for segment in segments]
@@ -70,6 +71,20 @@ def get_horizontal_lines(
 ) -> list[Line] | None:
     validate_number(slope_thresh, float, 0, 0.2)
     lines = [line for line in lines if line.slope is not None and abs(line.slope) < slope_thresh]
+    return lines if lines else None
+
+
+def get_vertical_lines(
+    lines: list[Line],
+    theta_thresh: float = 1.0
+) -> list[Line] | None:
+    validate_number(theta_thresh, float, 0, 20)
+
+    lines = [
+        line for line in lines
+        if abs(line.theta - 90) < theta_thresh
+    ]
+
     return lines if lines else None
 
 
