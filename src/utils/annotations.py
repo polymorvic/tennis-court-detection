@@ -4,7 +4,11 @@ from typing import ClassVar, Literal, Self, Type
 
 import matplotlib.pyplot as plt
 import numpy as np
-from src.schemas.annotations import ImageAnnotation, TennisCourtKeyPointLabel
+from src.schemas.annotations import (
+    ImageAnnotation,
+    KeyPointAnnotation,
+    TennisCourtKeyPointLabel,
+)
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.common import ArrayLike
     
@@ -14,7 +18,7 @@ def transform_keypoint_annotation(
     annotation: list[list[float]] | np.ndarray
 ) -> list[Point] | np.ndarray:
     arr = np.array(annotation) * np.array([img.shape[1], img.shape[0]]) / 100
-    return Point.from_iterable(*arr) if isinstance(annotation, list) else arr.astype(np.float32)
+    return Point.from_iterable(*arr) if isinstance(annotation, list) else arr.astype(np.int64)
 
 
 _RawAnnotations = list[dict[Literal["filename", "data"], str | list]]
@@ -135,6 +139,27 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
 
     def filter_by_image(self, image_name: str) -> AT:
         return self.cleaned_annotations.get(image_name)
+
+    @staticmethod
+    def get_key_point(
+        key_points: list[KeyPointAnnotation],
+        label: str | TennisCourtKeyPointLabel,
+    ) -> KeyPointAnnotation:
+        resolved = TennisCourtKeyPointLabel(label) if isinstance(label, str) else label
+        for kp in key_points:
+            if kp.label == resolved:
+                return kp
+        raise KeyError(f"Key point not found: {resolved!r}")
+
+    def get_key_point_for_image(
+        self,
+        image_name: str,
+        label: str | TennisCourtKeyPointLabel,
+    ) -> KeyPointAnnotation:
+        ann = self.filter_by_image(image_name)
+        if ann is None:
+            raise KeyError(f"No annotation for image: {image_name!r}")
+        return self.get_key_point(ann.key_points, label)
 
     @staticmethod
     def display_on_img(
