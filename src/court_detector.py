@@ -4,7 +4,9 @@ import numpy as np
 from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line
+from cvgeomkit.geometry.intersections import compute_intersections
 
+from src.schemas.config import ServiceSide
 from src.utils.helpers import (crop_center_img, service_line_scan_params, lines_from_bin_img, 
                                get_horizontal_lines, get_vertical_lines)
 from src.utils.images import process_img_for_service_line_detection
@@ -25,6 +27,7 @@ class CourtDetector:
 
     def scan_for_service_line(
         self,
+        service_side: ServiceSide,
         roi_h: int | None = None, 
         step: int | None = None, 
         warmup: int = None
@@ -70,13 +73,39 @@ class CourtDetector:
             if centre_service_line_candidates is None:
                 continue
 
-
             service_line_local = sorted(service_line_candidates, key = lambda line: line.intercept, reverse=True)[0]
+
+            intersections = set(compute_intersections(line_candidates, roi))
+            if intersections is None:
+                continue
+
+            for intersection in intersections:
+                line1 = intersection.line1
+                line2 = intersection.line2
+
+                angle = intersection._compute_angle(line1, line2)
+
+
+
+                print(line1, line2, angle)
+
+
+            
+
+            
+
+            if service_side == ServiceSide.LEFT:
+                pass
+
+            else:
+                pass
 
             # if service_line_local:
             #     break
 
             if get_debug_mode():
+                print('intersections ---')
+                print(intersections)
 
                 print('line candidates ---')
                 print(line_candidates)

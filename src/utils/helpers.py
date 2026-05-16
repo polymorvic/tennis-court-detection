@@ -52,7 +52,7 @@ def lines_from_bin_img(
         display_img(edges)
 
         img_copy = cv2.merge([bin_img, bin_img, bin_img])
-        if segments is None:
+        if segments is not None:
             for segment in segments:
                 x1, y1, x2, y2 = segment[0]
                 cv2.line(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -136,8 +136,8 @@ def straighten_columns(
 
 def straighten(
     bin_img: ArrayLike,
-    row_white_ratio_threshold: float = 0.45,
-    col_white_ratio_threshold: float = 0.2,
+    row_white_ratio_threshold: float = 0.5,
+    col_white_ratio_threshold: float = 0.3,
     clear_non_matching: bool = False
 ) -> ArrayLike:
     validate_number(row_white_ratio_threshold, float, 0, 1)
