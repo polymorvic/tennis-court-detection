@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-from skimage.morphology import skeletonize
 
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.utils.plotting import display_img

@@ -33,7 +33,7 @@ class CourtDetector:
         warmup: int = None,
         canny_lower_thresh: int = 25,
         canny_upper_thresh: int = 100,
-        hough_thresh: int = 50,
+        hough_thresh: int = 100,
         min_line_len_ratio: float = 0.05,
         min_line_gap_px: float = 5,
         vertical_center_delta_px: int = 10,
@@ -88,21 +88,39 @@ class CourtDetector:
                 continue
 
             service_line_candidates = get_horizontal_lines(line_candidates)
+            
+            if get_debug_mode():
+                print('service_line_candidates ---')
+                print(service_line_candidates)
+
             if not service_line_candidates:
                 continue
 
             centre_service_line_candidates = get_vertical_lines(line_candidates)
+
+            if get_debug_mode():
+                print('centre_service_line_candidates before ---')
+                print(centre_service_line_candidates)
+
             if not centre_service_line_candidates:
                 continue
 
             centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px)
+            
+            if get_debug_mode():
+                print('centre_service_line_candidates after ---')
+                print(centre_service_line_candidates)
+
             if not centre_service_line_candidates:
                 continue
 
             intersections = set(compute_intersections(line_candidates, roi))
-
             if not intersections:
                 continue
+
+            if get_debug_mode():
+                print('intersections')
+                print(intersections)
 
             filtered = filter_service_intersections(
                 intersections,
@@ -113,6 +131,10 @@ class CourtDetector:
 
             if filtered is None:
                 continue
+
+            if get_debug_mode():
+                print('filtered intersections')
+                print(filtered)
 
             service_line_local, centre_service_line_local, service_point_local = filtered
 
