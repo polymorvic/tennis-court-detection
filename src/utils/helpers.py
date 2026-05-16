@@ -2,9 +2,11 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
+from cvgeomkit.utils.plotting import display_img
 
 
 from src.utils.validators import check_if_numpy_image, validate_number
+from src.config import get_debug_mode
 
 
 def crop_center_img(
@@ -45,6 +47,16 @@ def lines_from_bin_img(
         minLineLength=int(min_line_len_ratio * crop_img_width),
         maxLineGap=min_line_gap
     )
+
+    if get_debug_mode():
+        display_img(edges)
+
+        img_copy = cv2.cvtColor(bin_img, cv2.COLOR_GRAY2BGR)
+        if segments is None:
+            for segment in segments:
+                x1, y1, x2, y2 = segment[0]
+                cv2.line(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        display_img(img_copy)
 
     if segments is None:
          return
