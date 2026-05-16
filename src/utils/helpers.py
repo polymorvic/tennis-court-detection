@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike, Numeric
-from cvgeomkit.geometry.lines import Line
+from cvgeomkit.geometry.lines import Line, group_lines
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
@@ -187,12 +187,15 @@ def filter_service_intersections(
     angle_tol: float = 5,
 ) -> tuple[Line, Line, Point] | None:
     h_line = max(service_lines, key=lambda line: line.intercept)
-    v_line = (
-        max(centre_lines, key=lambda line: line.xv)
-        if service_side == ServiceSide.LEFT
-        else min(centre_lines, key=lambda line: line.xv)
-    )
-    h_key, v_key = h_line._key_(), v_line._key_()
+    h_key = h_line._key_()
+
+    if service_side == ServiceSide.LEFT:
+        v_line = max(centre_lines, key=lambda line: line.xv)
+
+    elif service_side == ServiceSide.RIGHT:
+        v_line = min(centre_lines, key=lambda line: line.xv)
+    
+    v_key = v_line._key_()
 
     for intersection in intersections:
         if abs(intersection.angle % 180 - 90) >= angle_tol:
