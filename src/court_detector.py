@@ -9,7 +9,8 @@ from cvgeomkit.geometry.intersections import compute_intersections
 
 from src.schemas.config import ServiceSide
 from src.utils.helpers import (crop_center_img, service_line_scan_params, lines_from_bin_img,
-                               get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines)
+                               get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines,
+                               filter_service_intersections)
 from src.utils.images import process_img_for_service_line_detection
 from src.utils.validators import validate_number
 
@@ -73,14 +74,10 @@ class CourtDetector:
                 continue
 
             centre_service_line_candidates = get_vertical_lines(line_candidates)
-            print('przed filtrowaniu center')
-            print(centre_service_line_candidates)
             if not centre_service_line_candidates:
                 continue
 
             centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi)
-            print('po filtrowaniu center')
-            print(centre_service_line_candidates)
             if not centre_service_line_candidates:
                 continue
 
@@ -89,20 +86,17 @@ class CourtDetector:
             if not intersections:
                 continue
 
-            print('sukces')
+            filtered = filter_service_intersections(
+                intersections,
+                service_line_candidates,
+                centre_service_line_candidates,
+                service_side
+            )
 
-            # filtered = filter_service_lines(
-            #     intersections,
-            #     service_line_candidates,
-            #     centre_service_line_candidates,
-            #     roi,
-            #     service_side,
-            # )
+            if filtered is None:
+                continue
 
-            # if filtered is None:
-            #     continue
-
-            # service_line_local, centre_service_line_local, service_point_local = filtered
+            service_line_local, centre_service_line_local, service_point_local = filtered
 
             if get_debug_mode():
                 print('intersections ---')
@@ -125,37 +119,37 @@ class CourtDetector:
 
                 display_img(roi_copy)
 
-        #     if any(x is not None for x in (
-        #         service_line_local,
-        #         centre_service_line_local,
-        #         service_point_local
-        #     )):
+            if any(x is not None for x in (
+                service_line_local,
+                centre_service_line_local,
+                service_point_local
+            )):
                 
-        #         break
+                break
 
 
-        # service_line_global = transform_line(
-        #     service_line_local,
-        #     roi,
-        #     self.center_crop_margin,
-        #     y
-        # )
+        service_line_global = transform_line(
+            service_line_local,
+            roi,
+            self.center_crop_margin,
+            y
+        )
 
-        # centre_service_line_global = transform_line(
-        #     centre_service_line_local,
-        #     roi,
-        #     self.center_crop_margin,
-        #     y
-        # )
+        centre_service_line_global = transform_line(
+            centre_service_line_local,
+            roi,
+            self.center_crop_margin,
+            y
+        )
 
-        # service_point_global = transform_point(
-        #     service_point_local,
-        #     self.center_crop_margin,
-        #     y,
-        # )
+        service_point_global = transform_point(
+            service_point_local,
+            self.center_crop_margin,
+            y,
+        )
 
 
-        # return service_line_global, centre_service_line_global, service_point_global
+        return service_line_global, centre_service_line_global, service_point_global
 
 
 
