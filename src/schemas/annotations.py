@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
 from enum import StrEnum
 
+import numpy as np
+
 
 class TennisCourtKeyPointLabel(StrEnum):
     left_outer_netline_point = "left_outer_netline_point"
@@ -32,6 +34,10 @@ class ImageMetaData(BaseModel):
 class KeyPointCoordinates(BaseModel):
     x: float = Field(ge=0, le=100)
     y: float = Field(ge=0, le=100)
+
+    @property
+    def as_array(self) -> np.ndarray:
+        return np.array([self.x, self.y])
 
 
 class KeyPointAnnotation(BaseModel):
