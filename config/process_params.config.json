@@ -1,7 +1,7 @@
 {
     "match_params": {
         "service_side": "left",
-        "match_type": "single"
+        "match_type": "singles"
     },
 
     "detection_params": {
