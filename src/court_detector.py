@@ -4,11 +4,12 @@ import numpy as np
 from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line
+from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections
 
 from src.schemas.config import ServiceSide
-from src.utils.helpers import (crop_center_img, service_line_scan_params, lines_from_bin_img, 
-                               get_horizontal_lines, get_vertical_lines)
+from src.utils.helpers import (crop_center_img, service_line_scan_params, lines_from_bin_img,
+                               get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines)
 from src.utils.images import process_img_for_service_line_detection
 from src.utils.validators import validate_number
 
@@ -50,6 +51,8 @@ class CourtDetector:
         y = ch - roi_h
         i = 0
         service_line_local = None
+        centre_service_line_local = None
+        service_point_local = None
         while y > 0:
             i += 1
             y -= step
@@ -62,46 +65,44 @@ class CourtDetector:
             roi_bin = process_img_for_service_line_detection(roi_gray, 150, 255)
 
             line_candidates = lines_from_bin_img(roi_bin, cw, 25, 100, 50, 0.05, 5)
-            if line_candidates is None:
+            if not line_candidates:
                 continue
 
             service_line_candidates = get_horizontal_lines(line_candidates)
-            if service_line_candidates is None:
+            if not service_line_candidates:
                 continue
 
             centre_service_line_candidates = get_vertical_lines(line_candidates)
-            if centre_service_line_candidates is None:
+            print('przed filtrowaniu center')
+            print(centre_service_line_candidates)
+            if not centre_service_line_candidates:
                 continue
 
-            service_line_local = sorted(service_line_candidates, key = lambda line: line.intercept, reverse=True)[0]
+            centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi)
+            print('po filtrowaniu center')
+            print(centre_service_line_candidates)
+            if not centre_service_line_candidates:
+                continue
 
             intersections = set(compute_intersections(line_candidates, roi))
-            if intersections is None:
+
+            if not intersections:
                 continue
 
-            for intersection in intersections:
-                line1 = intersection.line1
-                line2 = intersection.line2
+            print('sukces')
 
-                angle = intersection._compute_angle(line1, line2)
+            # filtered = filter_service_lines(
+            #     intersections,
+            #     service_line_candidates,
+            #     centre_service_line_candidates,
+            #     roi,
+            #     service_side,
+            # )
 
+            # if filtered is None:
+            #     continue
 
-
-                print(line1, line2, angle)
-
-
-            
-
-            
-
-            if service_side == ServiceSide.LEFT:
-                pass
-
-            else:
-                pass
-
-            # if service_line_local:
-            #     break
+            # service_line_local, centre_service_line_local, service_point_local = filtered
 
             if get_debug_mode():
                 print('intersections ---')
@@ -124,15 +125,38 @@ class CourtDetector:
 
                 display_img(roi_copy)
 
-            netline_global = transform_line(
-                original_line=service_line_local,
-                original_img=roi,
-                original_x_start=self.center_crop_margin,
-                original_y_start=y,
-                to_global=True
-            )
+        #     if any(x is not None for x in (
+        #         service_line_local,
+        #         centre_service_line_local,
+        #         service_point_local
+        #     )):
+                
+        #         break
 
-            print(netline_global)
+
+        # service_line_global = transform_line(
+        #     service_line_local,
+        #     roi,
+        #     self.center_crop_margin,
+        #     y
+        # )
+
+        # centre_service_line_global = transform_line(
+        #     centre_service_line_local,
+        #     roi,
+        #     self.center_crop_margin,
+        #     y
+        # )
+
+        # service_point_global = transform_point(
+        #     service_point_local,
+        #     self.center_crop_margin,
+        #     y,
+        # )
+
+
+        # return service_line_global, centre_service_line_global, service_point_global
+
 
 
 
