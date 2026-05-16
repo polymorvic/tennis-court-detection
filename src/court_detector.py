@@ -59,18 +59,21 @@ class CourtDetector:
 
             roi = crop[y:y + roi_h]
             roi_gray = crop_gray[y:y + roi_h]
+
+            
             roi_bin = cv2.inRange(roi_gray, 0, 70)
+
+
             roi_bin_closed = cv2.morphologyEx(roi_bin, cv2.MORPH_CLOSE, kernel)
             roi_bin_straighten = straighten_rows(roi_bin_closed)
 
             display_img(roi)
+            display_img(roi_gray)
             display_img(roi_bin)
             display_img(roi_bin_closed)
             display_img(roi_bin_straighten)
 
-            
-
-
+        
 
             # get_lines_from_bin_img(roi, black_mask_close, cw)
 
