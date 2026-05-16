@@ -30,7 +30,15 @@ class CourtDetector:
         service_side: ServiceSide,
         roi_h: int | None = None, 
         step: int | None = None, 
-        warmup: int = None
+        warmup: int = None,
+        canny_lower_thresh: int = 25,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 50,
+        min_line_len_ratio: float = 0.05,
+        min_line_gap_px: float = 5,
+        vertical_center_delta_px: int = 10,
+        white_line_bin_lower_thresh: int = 150,
+        white_line_bin_upper_thresh: int = 255,
     ):
         img_h = self.img.height
         default_roi_h, default_step, default_warmup = service_line_scan_params(img_h)
@@ -65,9 +73,17 @@ class CourtDetector:
                 return None
 
             roi_gray = crop_gray[y:y + roi_h]
-            roi_bin = process_img_for_service_line_detection(roi_gray, 150, 255)
+            roi_bin = process_img_for_service_line_detection(roi_gray, white_line_bin_lower_thresh, white_line_bin_upper_thresh)
 
-            line_candidates = lines_from_bin_img(roi_bin, cw, 25, 100, 50, 0.05, 5)
+            line_candidates = lines_from_bin_img(
+                roi_bin, 
+                cw, 
+                canny_lower_thresh, 
+                canny_upper_thresh, 
+                hough_thresh, 
+                min_line_len_ratio, 
+                min_line_gap_px
+            )
             if not line_candidates:
                 continue
 
@@ -79,7 +95,7 @@ class CourtDetector:
             if not centre_service_line_candidates:
                 continue
 
-            centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi)
+            centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px)
             if not centre_service_line_candidates:
                 continue
 
