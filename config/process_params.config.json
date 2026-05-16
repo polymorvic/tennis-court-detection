@@ -8,7 +8,7 @@
         "traversing": {
             "roi_height_px": 80,
             "step_px": 20,
-            "warmup": 20
+            "warmup": 15
         }
     }
 }
