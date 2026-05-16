@@ -1,4 +1,0 @@
-scan_for_net_line:
-  - roi_h: 80
-  - step: 20
-  - warmup: 20

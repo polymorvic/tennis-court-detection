@@ -1,0 +1,16 @@
+{
+    "match_params": {
+        "service_side": "left",
+        "match_type": "single"
+    },
+
+    "detection_params": {
+        "traversing": {
+            "roi_height_px": 80,
+            "step_px": 20,
+            "warmup": 20
+        }
+    }
+}
+
+
