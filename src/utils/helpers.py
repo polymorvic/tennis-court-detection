@@ -10,14 +10,14 @@ from src.utils.validators import check_if_numpy_image, validate_number
 def crop_center_img(
         img: ArrayLike, 
         crop_ratio: float = 0.4
-) -> tuple[ArrayLike, int, int]:
+) -> tuple[ArrayLike, int, int, int]:
         validate_number(crop_ratio, float, 0, 1, min_inclusive=False)
         img = check_if_numpy_image(img)
         w = img.width
         margin = int((1 - crop_ratio) * w / 2)
         crop = img[:, margin:w - margin]
         ch, cw = crop.height, crop.width
-        return crop, ch, cw
+        return crop, ch, cw, margin
 
 
 def net_line_scan_params(height: int) -> tuple[int, int, int]:
@@ -30,11 +30,13 @@ def net_line_scan_params(height: int) -> tuple[int, int, int]:
 def lines_from_bin_img(
     bin_img: ArrayLike,
     crop_img_width: int,
+    canny_lower_thresh: int,
+    canny_upper_thresh: int,
     hough_thresh: int,
     min_line_len_ratio: float,
     min_line_gap: int
 ) -> list[Line] | None:
-    edges = cv2.Canny(bin_img, 25, 100)
+    edges = cv2.Canny(bin_img, canny_lower_thresh, canny_upper_thresh)
     segments = cv2.HoughLinesP(
         edges,
         rho=1,
@@ -76,10 +78,6 @@ def straighten_rows(
     bin_img_out[rows_to_fill, :] = 255
 
     white_counts = np.count_nonzero(bin_img_out > 0, axis=1)
-
-    print('thresh', threshold)
-    print(white_counts)
-
     return bin_img_out
 
 
