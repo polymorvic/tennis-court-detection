@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from skimage.morphology import skeletonize
 
 from cvgeomkit.common import ArrayLike
 
@@ -17,7 +18,9 @@ def process_img_for_netline_detection_threshold(
     bin_img = cv2.inRange(gray_img, lower_bin_thresh, upper_bin_thresh)
     roi_bin_closed_img = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel)
     bin_straighten_img = straighten_rows(roi_bin_closed_img)
-    return bin_img, roi_bin_closed_img, bin_straighten_img
+    skeleleton = skeletonize(bin_straighten_img)
+    skel_img = (skeleleton * 255).astype(np.uint8)
+    return bin_img, roi_bin_closed_img, bin_straighten_img, skel_img
 
 
 def process_img_for_netline_detection_scoring(
