@@ -23,38 +23,33 @@ def process_img_for_netline_detection_threshold(
     return bin_img, roi_bin_closed_img, bin_straighten_img, skel_img
 
 
-def process_img_for_netline_detection_scoring(
+def process_img_for_netline_detection_clahe(
     gray_img: ArrayLike,
-    min_width_ratio: float = 0.55,
-    min_dark_delta: float = 3.0,
-    band_smooth: int = 9,    
+    gaussian_sigma: float = 15,
+    clahe_clip_limit: float = 4.0,
+    clahe_tile_grid_size: tuple[int, int] = (8, 8),
+    adaptive_block_size: int = 31,
+    adaptive_c: int = -5,
 ):
-    blur_img = cv2.GaussianBlur(gray_img, (3, 3), 0)
-    backgroung = cv2.GaussianBlur(blur_img, (1, 31), 0)
+    background = cv2.GaussianBlur(gray_img, (0,0), gaussian_sigma)
+    enhanced = cv2.subtract(background, gray_img)
 
-    dark = cv2.subtract(backgroung, blur_img).astype(np.float32)
-    
-    dark = cv2.GaussianBlur(dark, (31, 1), 0)
+    clahe = cv2.createCLAHE(
+        clipLimit=clahe_clip_limit,
+        tileGridSize=clahe_tile_grid_size
+    )
+    enhanced = clahe.apply(enhanced)
+    enhanced = cv2.normalize(enhanced, None, 0, 255, cv2.NORM_MINMAX)
 
-    mask = dark > min_dark_delta
+    bin_img = cv2.adaptiveThreshold(
+        enhanced,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        adaptive_block_size,
+        adaptive_c
+    )
 
-    coverage = mask.mean(axis=1)
-
-    strength = dark.mean(axis=1)
-
-    score = strength * coverage
-
-    score = cv2.GaussianBlur(
-        score.reshape(-1, 1),
-        (1, band_smooth),
-        0
-    ).ravel()
-
-    best_y = int(np.argmax(score))
-    best_score = float(score[best_y])
-    best_coverage = float(coverage[best_y])
-
-    if best_coverage < min_width_ratio:
-        return None, best_score, best_coverage, score
-
-    return best_y, best_score, best_coverage, score
+    bin_straighten_img = straighten_rows(bin_img, clear_non_matching=True)
+    skeleleton = skeletonize(bin_straighten_img)
+    return (skeleleton * 255).astype(np.uint8)
