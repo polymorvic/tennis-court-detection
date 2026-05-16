@@ -5,9 +5,9 @@ from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line
 
-from src.utils.helpers import (crop_center_img, net_line_scan_params, lines_from_bin_img, 
-                               get_horizontal_lines)
-from src.utils.images import process_img_for_netline_detection_threshold, process_img_for_netline_detection_clahe
+from src.utils.helpers import (crop_center_img, service_line_scan_params, lines_from_bin_img, 
+                               get_horizontal_lines, get_vertical_lines)
+from src.utils.images import process_img_for_service_line_detection
 from src.utils.validators import validate_number
 
 from src.config import get_debug_mode
@@ -23,14 +23,14 @@ class CourtDetector:
         self.center_crop_img_gray = cv2.cvtColor(self.center_crop_img, cv2.COLOR_RGB2GRAY)
 
 
-    def scan_for_net_line(
+    def scan_for_service_line(
         self,
         roi_h: int | None = None, 
         step: int | None = None, 
         warmup: int = None
     ):
         img_h = self.img.height
-        default_roi_h, default_step, default_warmup = net_line_scan_params(img_h)
+        default_roi_h, default_step, default_warmup = service_line_scan_params(img_h)
 
         roi_h = default_roi_h if roi_h is None else roi_h
         step = default_step if step is None else step
@@ -46,7 +46,7 @@ class CourtDetector:
         crop_gray = self.center_crop_img_gray
         y = ch - roi_h
         i = 0
-        netline_local = None
+        service_line_local = None
         while y > 0:
             i += 1
             y -= step
@@ -56,34 +56,47 @@ class CourtDetector:
 
             roi = crop[y:y + roi_h]
             roi_gray = crop_gray[y:y + roi_h]
+            roi_bin = process_img_for_service_line_detection(roi_gray, 150, 255)
 
-            # roi_bin = process_img_for_netline_detection_threshold(roi_gray, 0, 70)
-            roi_bin = process_img_for_netline_detection_clahe(roi_gray)
-
-            net_line_candidates = lines_from_bin_img(roi_bin, cw, 25, 100, 100, 0.05, 30)
-            if net_line_candidates is None:
+            line_candidates = lines_from_bin_img(roi_bin, cw, 25, 100, 50, 0.05, 5)
+            if line_candidates is None:
                 continue
 
-            net_line_candidates = get_horizontal_lines(net_line_candidates)
-            if net_line_candidates is None:
+            service_line_candidates = get_horizontal_lines(line_candidates)
+            if service_line_candidates is None:
                 continue
 
-            netline_local = sorted(net_line_candidates, key = lambda line: line.intercept, reverse=True)[0]
+            centre_service_line_candidates = get_vertical_lines(line_candidates)
+            if centre_service_line_candidates is None:
+                continue
 
-            if netline_local:
-                break
 
-        if get_debug_mode():
-            print(netline_local)
+            service_line_local = sorted(service_line_candidates, key = lambda line: line.intercept, reverse=True)[0]
 
-            roi_copy = roi.copy()
-            p1, p2 = netline_local.limit_to_img(roi_copy)
-            cv2.line(roi_copy, p1, p2, (255, 0, 0), 2)
+            # if service_line_local:
+            #     break
 
-            display_img(roi_copy)
+            if get_debug_mode():
+
+                print('line candidates ---')
+                print(line_candidates)
+
+
+                print('service_line_candidates ---')
+                print(service_line_candidates)
+
+                print('centre_service_line_candidates ---')
+                print(centre_service_line_candidates)
+
+                roi_copy = roi.copy()
+                for line in line_candidates:
+                    p1, p2 = line.limit_to_img(roi_copy)
+                    cv2.line(roi_copy, p1, p2, (255, 0, 0), 2)
+
+                display_img(roi_copy)
 
             netline_global = transform_line(
-                original_line=netline_local,
+                original_line=service_line_local,
                 original_img=roi,
                 original_x_start=self.center_crop_margin,
                 original_y_start=y,
