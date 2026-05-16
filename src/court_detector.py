@@ -8,15 +8,13 @@ from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections
 
 from src.schemas.config import ServiceSide
-from src.utils.helpers import (crop_center_img, service_line_scan_params, lines_from_bin_img,
-                               get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines,
-                               filter_service_intersections)
+from src.utils.helpers import crop_center_img, service_line_scan_params, lines_from_bin_img
+                              
+from src.utils.filters import get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines, filter_service_intersections
 from src.utils.images import process_img_for_service_line_detection
 from src.utils.validators import validate_number
 
 from src.config import get_debug_mode
-
-
 
 
 class CourtDetector:
