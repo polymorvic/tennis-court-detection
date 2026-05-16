@@ -2,9 +2,11 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
+from cvgeomkit.geometry.points import Point
+from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 
-
+from src.schemas.config import ServiceSide
 from src.utils.validators import check_if_numpy_image, validate_number
 from src.config import get_debug_mode
 
@@ -86,6 +88,44 @@ def get_vertical_lines(
     ]
 
     return lines if lines else None
+
+
+def filter_service_lines(
+    intersections: set[Intersection],
+    service_line_candidates: list[Line],
+    vertical_candidates: list[Line],
+    roi: ArrayLike,
+    service_side: ServiceSide,
+    vert_cluster_dist: int = 25,
+) -> tuple[Line, Line, Point] | None:
+    
+    w, h = roi.width, roi.height
+    cx, cy = w / 2, h / 2
+
+    service_line = max(service_line_candidates, key=lambda line: line.intercept)
+
+    ref = min(vertical_candidates, key=lambda line: abs(line.xv - cx))
+    cluster = [line for line in vertical_candidates if abs(line.xv - ref.xv) <= vert_cluster_dist]
+    if service_side == ServiceSide.LEFT:
+        centre_service_line = max(cluster, key=lambda line: line.xv)
+    else:
+        centre_service_line = min(cluster, key=lambda line: line.xv)
+
+    perp_near_center = []
+    for ix in intersections:
+        lines = (ix.line1, ix.line2)
+        has_horiz = any(line.slope is not None and abs(line.slope) < 0.05 for line in lines)
+        has_vert = any(line.xv is not None for line in lines)
+        if not (has_horiz and has_vert):
+            continue
+        dist = (ix.point.x - cx) ** 2 + (ix.point.y - cy) ** 2
+        perp_near_center.append((dist, ix))
+
+    if not perp_near_center:
+        return None
+
+    point = min(perp_near_center, key=lambda item: item[0])[1].point
+    return service_line, centre_service_line, point
 
 
 def straighten_rows(
