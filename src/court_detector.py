@@ -28,9 +28,9 @@ class CourtDetector:
     def scan_for_service_lines(
         self,
         service_side: ServiceSide,
-        roi_h: int | None = None, 
-        step: int | None = None, 
-        warmup: int = None,
+        roi_h: int = 80, 
+        step: int = 20, 
+        warmup: int = 15,
         canny_lower_thresh: int = 25,
         canny_upper_thresh: int = 100,
         hough_thresh: int = 100,
@@ -40,16 +40,16 @@ class CourtDetector:
         white_line_bin_lower_thresh: int = 150,
         white_line_bin_upper_thresh: int = 255,
     ):
-        img_h = self.img.height
-        default_roi_h, default_step, default_warmup = service_line_scan_params(img_h)
+        # img_h = self.img.height
+        # default_roi_h, default_step, default_warmup = service_line_scan_params(img_h)
 
-        roi_h = default_roi_h if roi_h is None else roi_h
-        step = default_step if step is None else step
-        warmup = default_warmup if warmup is None else warmup
+        # roi_h = default_roi_h if roi_h is None else roi_h
+        # step = default_step if step is None else step
+        # warmup = default_warmup if warmup is None else warmup
 
-        validate_number(roi_h, int, 0, img_h// 2)
-        validate_number(step, int, 0, img_h // 20)
-        validate_number(warmup, int, 0, img_h // 40)
+        # validate_number(roi_h, int, 0, img_h// 2)
+        # validate_number(step, int, 0, img_h // 20)
+        # validate_number(warmup, int, 0, img_h // 40)
 
         ch = self.center_crop_h
         cw = self.center_crop_w
