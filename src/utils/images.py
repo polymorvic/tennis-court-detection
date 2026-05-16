@@ -5,31 +5,28 @@ from skimage.morphology import skeletonize
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.utils.plotting import display_img
 
-from src.utils.helpers import straighten_rows
+from src.utils.helpers import straighten
 from src.config import get_debug_mode
 
 
-def process_img_for_netline_detection_threshold(
+def process_img_for_service_line_detection(
     gray_img: ArrayLike,
     lower_bin_thresh: int,
     upper_bin_thresh: int,
-    kernel_height: int = 3,
+    kernel_height: int = 1,
     kernel_width: int = 25
 ) -> ArrayLike:
     kernel = np.ones((kernel_height, kernel_width), np.uint8)
     bin_img = cv2.inRange(gray_img, lower_bin_thresh, upper_bin_thresh)
     roi_bin_closed_img = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel)
-    bin_straighten_img = straighten_rows(roi_bin_closed_img)
-    skeleleton = skeletonize(bin_straighten_img)
-    skel_img = (skeleleton * 255).astype(np.uint8)
+    bin_straighten_img = straighten(roi_bin_closed_img, clear_non_matching=True)
 
     if get_debug_mode():
         display_img(gray_img)
         display_img(bin_img)
         display_img(bin_straighten_img)
-        display_img(skel_img)
 
-    return skel_img
+    return None
 
 
 def process_img_for_netline_detection_clahe(
@@ -55,7 +52,7 @@ def process_img_for_netline_detection_clahe(
     bin_img = cv2.inRange(enhanced, 200, 255)
 
     bin_closed_img = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel)
-    bin_straighten_img = straighten_rows(bin_closed_img, 0.3, clear_non_matching=True)
+    bin_straighten_img = straighten(bin_closed_img, clear_non_matching=True)
     
     if get_debug_mode():
         display_img(gray_img)
