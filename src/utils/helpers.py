@@ -63,7 +63,8 @@ def get_horizontal_lines(
 
 def straighten_rows(
     bin_img : ArrayLike,
-    white_ratio_threshold: float = 0.45
+    white_ratio_threshold: float = 0.45,
+    clear_non_matching: bool = False
 ) -> ArrayLike:
     validate_number(white_ratio_threshold, float, 0, 1)
     bin_img = check_if_numpy_image(bin_img)
@@ -77,7 +78,9 @@ def straighten_rows(
     rows_to_fill = white_counts > threshold
     bin_img_out[rows_to_fill, :] = 255
 
-    white_counts = np.count_nonzero(bin_img_out > 0, axis=1)
+    if clear_non_matching:
+        bin_img_out[~rows_to_fill, :] = 0
+
     return bin_img_out
 
 
