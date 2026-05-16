@@ -61,7 +61,6 @@ def lines_from_bin_img(
         display_img(img_copy)
 
     if segments is None:
-         print('nic')
          return
     
     return [Line.from_hough_line(*segment) for segment in segments]
@@ -82,11 +81,7 @@ def get_vertical_lines(
 ) -> list[Line] | None:
     validate_number(theta_thresh, float, 0, 20)
 
-    lines = [
-        line for line in lines
-        if abs(line.theta - 90) < theta_thresh
-    ]
-
+    lines = [line for line in lines if abs(line.theta - 90) < theta_thresh]
     return lines if lines else None
 
 
@@ -190,7 +185,7 @@ def filter_service_intersections(
     centre_lines: list[Line],
     service_side: ServiceSide,
     angle_tol: float = 5,
-) -> Intersection | None:
+) -> tuple[Line, Line, Point] | None:
     h_line = max(service_lines, key=lambda line: line.intercept)
     v_line = (
         max(centre_lines, key=lambda line: line.xv)
@@ -204,5 +199,5 @@ def filter_service_intersections(
             continue
         keys = {intersection.line1._key_(), intersection.line2._key_()}
         if h_key in keys and v_key in keys:
-            return intersection
+            return h_line, v_line, intersection.point
     return None
