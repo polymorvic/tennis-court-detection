@@ -13,7 +13,7 @@
         "lines_detection": {
             "canny_lower_thresh": 25,
             "canny_upper_thresh": 100,
-            "hough_thresh": 100,
+            "hough_thresh": 50,
             "min_line_len_ratio": 0.05,
             "min_line_gap_px": 5,
             "vertical_center_delta_px": 10,

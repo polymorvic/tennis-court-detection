@@ -33,24 +33,13 @@ class CourtDetector:
         warmup: int = 15,
         canny_lower_thresh: int = 25,
         canny_upper_thresh: int = 100,
-        hough_thresh: int = 100,
+        hough_thresh: int = 50,
         min_line_len_ratio: float = 0.05,
         min_line_gap_px: float = 5,
         vertical_center_delta_px: int = 10,
         white_line_bin_lower_thresh: int = 150,
         white_line_bin_upper_thresh: int = 255,
     ):
-        # img_h = self.img.height
-        # default_roi_h, default_step, default_warmup = service_line_scan_params(img_h)
-
-        # roi_h = default_roi_h if roi_h is None else roi_h
-        # step = default_step if step is None else step
-        # warmup = default_warmup if warmup is None else warmup
-
-        # validate_number(roi_h, int, 0, img_h// 2)
-        # validate_number(step, int, 0, img_h // 20)
-        # validate_number(warmup, int, 0, img_h // 40)
-
         ch = self.center_crop_h
         cw = self.center_crop_w
         crop = self.center_crop_img
