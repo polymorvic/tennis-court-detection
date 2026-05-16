@@ -20,7 +20,7 @@ def crop_center_img(
         return crop, ch, cw, margin
 
 
-def net_line_scan_params(height: int) -> tuple[int, int, int]:
+def service_line_scan_params(height: int) -> tuple[int, int, int]:
     roi_h = height // 5
     step = max(1, height // 20)
     warmup = max(1, height // 40)
@@ -84,3 +84,61 @@ def straighten_rows(
     return bin_img_out
 
 
+def straighten_columns(
+    bin_img: ArrayLike,
+    white_ratio_threshold: float = 0.45,
+    clear_non_matching: bool = False
+) -> ArrayLike:
+    validate_number(white_ratio_threshold, float, 0, 1)
+    bin_img = check_if_numpy_image(bin_img)
+    bin_img_out = bin_img.copy()
+
+    h = bin_img.shape[0]
+
+    white_counts = np.count_nonzero(bin_img_out > 0, axis=0)
+    threshold = white_ratio_threshold * h
+
+    cols_to_fill = white_counts > threshold
+    bin_img_out[:, cols_to_fill] = 255
+
+    if clear_non_matching:
+        bin_img_out[:, ~cols_to_fill] = 0
+
+    return bin_img_out
+
+
+def straighten(
+    bin_img: ArrayLike,
+    row_white_ratio_threshold: float = 0.45,
+    col_white_ratio_threshold: float = 0.2,
+    clear_non_matching: bool = False
+) -> ArrayLike:
+    validate_number(row_white_ratio_threshold, float, 0, 1)
+    validate_number(col_white_ratio_threshold, float, 0, 1)
+
+    bin_img = check_if_numpy_image(bin_img)
+    h, w = bin_img.height, bin_img.width
+
+    row_white_counts = np.count_nonzero(bin_img > 0, axis=1)
+    rows_to_fill = row_white_counts > (row_white_ratio_threshold * w)
+
+    rows_img = np.zeros_like(bin_img)
+
+    if clear_non_matching:
+        rows_img[rows_to_fill, :] = 255
+    else:
+        rows_img = bin_img.copy()
+        rows_img[rows_to_fill, :] = 255
+
+    col_white_counts = np.count_nonzero(bin_img > 0, axis=0)
+    cols_to_fill = col_white_counts > (col_white_ratio_threshold * h)
+
+    cols_img = np.zeros_like(bin_img)
+
+    if clear_non_matching:
+        cols_img[:, cols_to_fill] = 255
+    else:
+        cols_img = bin_img.copy()
+        cols_img[:, cols_to_fill] = 255
+
+    return cv2.bitwise_or(rows_img, cols_img)
