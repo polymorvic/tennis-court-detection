@@ -182,3 +182,27 @@ def straighten(
         cols_img[:, cols_to_fill] = 255
 
     return cv2.bitwise_or(rows_img, cols_img)
+
+
+def filter_service_intersections(
+    intersections: set[Intersection],
+    service_lines: list[Line],
+    centre_lines: list[Line],
+    service_side: ServiceSide,
+    angle_tol: float = 5,
+) -> Intersection | None:
+    h_line = max(service_lines, key=lambda line: line.intercept)
+    v_line = (
+        max(centre_lines, key=lambda line: line.xv)
+        if service_side == ServiceSide.LEFT
+        else min(centre_lines, key=lambda line: line.xv)
+    )
+    h_key, v_key = h_line._key_(), v_line._key_()
+
+    for intersection in intersections:
+        if abs(intersection.angle % 180 - 90) >= angle_tol:
+            continue
+        keys = {intersection.line1._key_(), intersection.line2._key_()}
+        if h_key in keys and v_key in keys:
+            return intersection
+    return None
