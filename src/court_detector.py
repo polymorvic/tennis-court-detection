@@ -40,8 +40,8 @@ class CourtDetector:
     ):
         ch = self.center_crop_h
         cw = self.center_crop_w
-        crop = self.center_crop_img
-        crop_gray = self.center_crop_img_gray
+        crop = self.center_crop_img.copy()
+        crop_gray = self.center_crop_img_gray.copy()
         y = ch - roi_h
         i = 0
         service_line_local = None
@@ -54,12 +54,12 @@ class CourtDetector:
             if i < warmup:
                 continue
 
-            roi = crop[y:y + roi_h]
+            roi = crop[y:y + roi_h].copy()
 
             if roi.size == 0:
                 return None
 
-            roi_gray = crop_gray[y:y + roi_h]
+            roi_gray = crop_gray[y:y + roi_h].copy()
             roi_bin = process_img_for_service_line_detection(roi_gray, white_line_bin_lower_thresh, white_line_bin_upper_thresh)
 
             line_candidates = lines_from_bin_img(
@@ -122,6 +122,11 @@ class CourtDetector:
             if get_debug_mode():
                 print('filtered intersections')
                 print(filtered)
+
+            _, _, service_point_candidate = filtered
+            detection_y = y + service_point_candidate.y
+            if not 450 <= detection_y <= 720:
+                continue
 
             service_line_local, centre_service_line_local, service_point_local = filtered
 
