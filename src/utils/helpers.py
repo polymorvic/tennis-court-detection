@@ -23,36 +23,28 @@ def crop_center_img(
         return crop, ch, cw, margin
 
 
-def service_line_scan_params(height: int) -> tuple[int, int, int]:
-    roi_h = height // 5
-    step = max(1, height // 20)
-    warmup = max(1, height // 40)
-    return roi_h, step, warmup
-
-
 def lines_from_bin_img(
-    bin_img: ArrayLike,
-    crop_img_width: int,
+    img: ArrayLike,
     canny_lower_thresh: int,
     canny_upper_thresh: int,
     hough_thresh: int,
-    min_line_len_ratio: float,
+    min_line_len_ratio: int,
     min_line_gap: int
 ) -> list[Line] | None:
-    edges = cv2.Canny(bin_img, canny_lower_thresh, canny_upper_thresh)
+    img = check_if_numpy_image(img)
+    edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
     segments = cv2.HoughLinesP(
         edges,
         rho=1,
         theta=np.pi / 180,
         threshold=hough_thresh,
-        minLineLength=int(min_line_len_ratio * crop_img_width),
+        minLineLength=int(min_line_len_ratio * img.width),
         maxLineGap=min_line_gap
     )
 
     if get_debug_mode():
         display_img(edges)
-
-        img_copy = cv2.merge([bin_img, bin_img, bin_img])
+        img_copy = cv2.merge([img, img, img])
         if segments is not None:
             for segment in segments:
                 x1, y1, x2, y2 = segment[0]
