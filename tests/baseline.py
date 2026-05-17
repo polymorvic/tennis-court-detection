@@ -21,7 +21,7 @@ def run(
     params_path: Path | str = 'config/process_params.config.json',
     blacklist_path: Path | str = 'config/pics_blacklist.config.yaml',
     annotation_path: Path | str = 'data/annotations.json',
-    output_dir: Path | str = 'results/baseline'
+    output_dir: Path | str = 'results/lines'
 ):
     '''
     uv run python -m tests.lines --test-type BASELINE
