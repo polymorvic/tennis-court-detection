@@ -19,9 +19,9 @@ class MatchParams(BaseModel):
 
 
 class BasicParams(BaseModel):
-    roi_h_px: int = 80
-    step_px: int = 20
-    crop_center_ratio: float = 0.4
+    roi_h_px: int = Field(default=80, gt=0)
+    step_px: int = Field(default=20, gt=0)
+    crop_center_ratio: float = Field(default=0.4, gt=0, le=1.0)
 
 
 class BaselineParams(BaseModel):
@@ -34,6 +34,7 @@ class BaselineParams(BaseModel):
         gt=0.0,
         le=1.0,
     )
+    min_line_gap_px: int = Field(default=10, gt=0)
 
     @model_validator(mode="after")
     def validate_thresholds(self):
