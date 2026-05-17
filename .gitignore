@@ -15,4 +15,4 @@ data/
 *.jpg
 *.csv
 *.xlsx
-
+.DS_Store
