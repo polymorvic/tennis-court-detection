@@ -266,6 +266,9 @@ class CourtDetector:
                 0.01,
                 0,
             )
+            if not scoreboard_lines:
+                continue
+            
             intersections = set(compute_intersections(scoreboard_lines, roi))
             is_scoreboard = False
             if intersections:
