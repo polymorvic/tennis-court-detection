@@ -1,5 +1,5 @@
 import cv2
-
+import numpy as np
 from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line
@@ -17,9 +17,18 @@ from src.config import get_debug_mode
 
 class CourtDetector:
 
-    def __init__(self, img: ArrayLike):
+    def __init__(
+        self, 
+        img: ArrayLike,
+        crop_center_ratio: float = 0.4,
+        roi_h_px: int = 80,
+        step_px: int = 20,
+        
+    ):
         self.img = NumpyImage(img)
-        self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img)
+        self.roi_h_px = roi_h_px
+        self.step_px = step_px
+        self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_ratio)
         self.center_crop_img_gray = cv2.cvtColor(self.center_crop_img, cv2.COLOR_RGB2GRAY)
 
 
@@ -183,11 +192,56 @@ class CourtDetector:
 
 
         return service_line_global, centre_service_line_global, service_point_global
+    
 
+    def scan_for_baseline(
+        self,
+        warmup: int = 5,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 100,
+        min_line_len_ratio: int = 0.15,
+        min_line_gap_px: int = 10,
+    ):
+        ch = self.center_crop_h
+        crop = self.center_crop_img.copy()
+        crop_gray = self.center_crop_img_gray.copy()
+        y = ch - self.roi_h_px
+        i = 0
+        baseline = None
+        while y > 0:
+            i += 1
+            y -= self.step_px
 
+            if i < warmup:
+                continue
 
+            roi = crop[y:y + self.roi_h_px].copy()
 
+            if roi.size == 0:
+                return None
 
+            roi_gray = crop_gray[y:y + self.roi_h_px].copy()
+
+            lines = lines_from_bin_img(
+                roi_gray, 
+                canny_lower_thresh, 
+                canny_upper_thresh,
+                hough_thresh, 
+                min_line_len_ratio,
+                min_line_gap_px
+            )
+            if not lines:
+                continue
+
+            baseline_candidates = get_horizontal_lines(lines)
+            if not baseline_candidates or len(baseline_candidates) < 2:
+                continue
+
+            baseline = sorted(baseline_candidates, key = lambda line: line.intercept, reverse=True)[0]
+            break
+
+        return transform_line(baseline, roi, self.center_crop_margin, y) if baseline else baseline
 
 
 
