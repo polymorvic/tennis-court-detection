@@ -16,4 +16,5 @@ data/
 *.csv
 *.xlsx
 *.txt
+*.mov
 .DS_Store
