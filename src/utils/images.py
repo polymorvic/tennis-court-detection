@@ -12,13 +12,15 @@ def process_img_for_service_line_detection(
     gray_img: ArrayLike,
     lower_bin_thresh: int,
     upper_bin_thresh: int,
-    kernel_height: int = 1,
-    kernel_width: int = 25
 ) -> ArrayLike:
-    kernel = np.ones((kernel_height, kernel_width), np.uint8)
+    h_kernel = np.ones((3, 25), np.uint8)
+    v_kernel = np.ones((35, 3), np.uint8)
+
     bin_img = cv2.inRange(gray_img, lower_bin_thresh, upper_bin_thresh)
-    roi_bin_closed_img = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, kernel)
-    bin_straighten_img = straighten(roi_bin_closed_img, clear_non_matching=True)
+
+    roi_bin_closed_img_h = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, h_kernel)
+    roi_bin_closed_img_v = cv2.morphologyEx(bin_img, cv2.MORPH_CLOSE, v_kernel)
+    closed_v_h_img = cv2.bitwise_or(roi_bin_closed_img_h, roi_bin_closed_img_v)
 
     if get_debug_mode():
         print('gray')
@@ -26,11 +28,9 @@ def process_img_for_service_line_detection(
         print('bin')
         display_img(bin_img)
         print('closed')
-        display_img(roi_bin_closed_img)
-        print('straight')
-        display_img(bin_straighten_img)
+        display_img(closed_v_h_img)
 
-    return roi_bin_closed_img
+    return closed_v_h_img
 
 
 # def process_img_for_netline_detection_clahe(

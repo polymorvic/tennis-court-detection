@@ -16,8 +16,8 @@
             "hough_thresh": 50,
             "min_line_len_ratio": 0.05,
             "min_line_gap_px": 5,
-            "vertical_center_delta_px": 100,
-            "white_line_bin_lower_thresh": 180,
+            "vertical_center_delta_px": 150,
+            "white_line_bin_lower_thresh": 170,
             "white_line_bin_upper_thresh": 255,
             "max_spread_vlines_px": 10 
         }
