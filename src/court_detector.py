@@ -245,7 +245,7 @@ class CourtDetector:
                 print('baseline candidates')
                 print(baseline_candidates)
 
-            if not baseline_candidates or len(baseline_candidates) < 2:
+            if not baseline_candidates:
                 continue
 
             baseline = sorted(baseline_candidates, key = lambda line: line.intercept, reverse=True)[0]
