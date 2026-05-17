@@ -35,7 +35,7 @@ class CourtDetector:
         min_line_len_ratio: float = 0.05,
         min_line_gap_px: int = 5,
         vertical_center_delta_px: int = 100,
-        white_line_bin_lower_thresh: int = 200,
+        white_line_bin_lower_thresh: int = 180,
         white_line_bin_upper_thresh: int = 255,
         max_spread_vlines_px: int = 10
     ):
