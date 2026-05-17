@@ -30,7 +30,7 @@ def process_img_for_service_line_detection(
         print('straight')
         display_img(bin_straighten_img)
 
-    return bin_straighten_img
+    return roi_bin_closed_img
 
 
 # def process_img_for_netline_detection_clahe(
