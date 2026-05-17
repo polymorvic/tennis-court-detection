@@ -16,9 +16,9 @@
             "warmup": 5,
             "canny_lower_thresh": 20,
             "canny_upper_thresh": 100,
-            "hough_thresh": 100,
+            "hough_thresh": 50,
             "min_line_len_ratio": 0.15,
-            "min_line_gap_px": 10,
+            "min_line_gap_px": 5,
             "h_line_slope_tolerance": 0.03
         }
     }
