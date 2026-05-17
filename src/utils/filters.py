@@ -29,11 +29,24 @@ def get_vertical_lines(
 def get_centre_vertical_lines(
     lines: list[Line],
     img: ArrayLike,
-    delta: Numeric = 100
+    delta: Numeric = 100,
+    max_spread: Numeric = 10,
 ):
     img = check_if_numpy_image(img)
     centre_x = img.width // 2
-    return [line for line in lines if line.xv is not None and abs(line.xv - centre_x) <= delta]
+
+    centre_lines = [line for line in lines if line.xv is not None and abs(line.xv - centre_x) <= delta]
+    if not centre_lines:
+        return []
+
+    centre_lines = sorted(centre_lines,key=lambda line: abs(line.xv - centre_x))[:3]
+
+    xs = [line.xv for line in centre_lines]
+    spread = max(xs) - min(xs)
+    if spread > max_spread:
+        return []
+
+    return centre_lines
 
 
 def filter_service_intersections(

@@ -46,6 +46,7 @@ def run(
     vertical_center_delta_px = params.detection_params.lines_detection.vertical_center_delta_px
     white_line_bin_lower_thresh = params.detection_params.lines_detection.white_line_bin_lower_thresh
     white_line_bin_upper_thresh = params.detection_params.lines_detection.white_line_bin_upper_thresh
+    max_spread_vlines_px = params.detection_params.lines_detection.max_spread_vlines_px
 
 
 
@@ -78,7 +79,8 @@ def run(
             min_line_gap_px,
             vertical_center_delta_px,
             white_line_bin_lower_thresh,
-            white_line_bin_upper_thresh
+            white_line_bin_upper_thresh,
+            max_spread_vlines_px
         )
 
         if centre_intresection is None:
