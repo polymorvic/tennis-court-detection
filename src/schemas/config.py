@@ -18,10 +18,19 @@ class MatchParams(BaseModel):
     match_type: MatchType
 
 
-class TraversingParams(BaseModel):
-    roi_height_px: int = Field(gt = 0)
-    step_px: int = Field(gt = 0)
-    warmup: int = Field(ge = 0)
+class BasicParams(BaseModel):
+    roi_h_px: int = 80
+    step_px: int = 20
+    crop_center_ratio: float = 0.4
+
+
+class BaselineParams(BaseModel):
+    warmup: int = 15
+    canny_lower_thresh: int = 20
+    canny_upper_thresh: int = 100
+    hough_thresh: int = 100
+    min_line_len_ratio: float = 0.15
+    min_line_gap_px: int = 10
 
 
 class LineDetectionParams(BaseModel):
@@ -54,8 +63,8 @@ class LineDetectionParams(BaseModel):
 
 
 class DetectionParams(BaseModel):
-    traversing: TraversingParams
-    lines_detection: LineDetectionParams
+    basic: BasicParams
+    baseline: BaselineParams
 
 
 class Params(BaseModel):
