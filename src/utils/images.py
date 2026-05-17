@@ -21,8 +21,13 @@ def process_img_for_service_line_detection(
     bin_straighten_img = straighten(roi_bin_closed_img, clear_non_matching=True)
 
     if get_debug_mode():
+        print('gray')
         display_img(gray_img)
+        print('bin')
         display_img(bin_img)
+        print('closed')
+        display_img(roi_bin_closed_img)
+        print('straight')
         display_img(bin_straighten_img)
 
     return bin_straighten_img
