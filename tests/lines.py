@@ -34,6 +34,21 @@ def run(
     params = load_process_params(params_path)
     blacklist = load_pics_blacklist(blacklist_path).blacklist
 
+    service_side = params.match_params.service_side.value
+    roi_h = params.detection_params.traversing.roi_height_px
+    step = params.detection_params.traversing.step_px
+    warmup = params.detection_params.traversing.warmup
+    canny_lower_thresh = params.detection_params.lines_detection.canny_lower_thresh
+    canny_upper_thresh = params.detection_params.lines_detection.canny_upper_thresh
+    hough_thresh = params.detection_params.lines_detection.hough_thresh
+    min_line_len_ratio = params.detection_params.lines_detection.min_line_len_ratio
+    min_line_gap_px = params.detection_params.lines_detection.min_line_gap_px
+    vertical_center_delta_px = params.detection_params.lines_detection.vertical_center_delta_px
+    white_line_bin_lower_thresh = params.detection_params.lines_detection.white_line_bin_lower_thresh
+    white_line_bin_upper_thresh = params.detection_params.lines_detection.white_line_bin_upper_thresh
+
+
+
     results = []
     not_found = []
     no_annotation = []
@@ -51,7 +66,20 @@ def run(
         img = read_image_as_numpyimage(file)
 
         detector = CourtDetector(img)
-        centre_intresection = detector.scan_for_service_lines(params.match_params.service_side)
+        centre_intresection = detector.scan_for_service_lines(
+            service_side,
+            roi_h,
+            step,
+            warmup,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_ratio,
+            min_line_gap_px,
+            vertical_center_delta_px,
+            white_line_bin_lower_thresh,
+            white_line_bin_upper_thresh
+        )
 
         if centre_intresection is None:
             not_found.append(file.name)
@@ -79,14 +107,14 @@ def run(
         results,
         not_found,
         no_annotation,
-        f'{test_type.value}-report'
+        f'_{test_type.value}-report'
 
     )
 
     save_test_histogram(
         test_out_dir, 
         intercept_errors, 
-        f'{test_type.value}-hist', 
+        f'_{test_type.value}-hist', 
         test_type.value
     )
 
