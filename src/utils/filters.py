@@ -29,11 +29,10 @@ def get_vertical_lines(
 def get_centre_vertical_lines(
     lines: list[Line],
     img: ArrayLike,
-    delta: Numeric = 10
+    delta: Numeric = 100
 ):
     img = check_if_numpy_image(img)
     centre_x = img.width // 2
-
     return [line for line in lines if line.xv is not None and abs(line.xv - centre_x) <= delta]
 
 

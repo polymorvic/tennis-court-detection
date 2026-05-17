@@ -62,7 +62,7 @@ def lines_from_bin_img(
     if segments is None:
          return
     
-    return [Line.from_hough_line(*segment) for segment in segments]
+    return [Line.from_hough_segment(*segment) for segment in segments]
 
 
 def straighten_rows(
