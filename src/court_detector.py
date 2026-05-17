@@ -248,10 +248,15 @@ class CourtDetector:
             if not baseline_candidates:
                 continue
 
-            baseline = sorted(baseline_candidates, key = lambda line: line.intercept, reverse=True)[0]
+            baseline_candidate = sorted(baseline_candidates, key=lambda line: line.intercept, reverse=True)[0]
+            baseline = transform_line(baseline_candidate, roi, self.center_crop_margin, y) 
+            if baseline.intercept >= 920:
+                baseline = None
+                continue
+
             break
 
-        return transform_line(baseline, roi, self.center_crop_margin, y) if baseline else baseline
+        return baseline
 
 
 
