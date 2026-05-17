@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 
 from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
@@ -8,11 +7,10 @@ from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections
 
 from src.schemas.config import ServiceSide
-from src.utils.helpers import crop_center_img, service_line_scan_params, lines_from_bin_img
+from src.utils.helpers import crop_center_img, lines_from_bin_img
                               
 from src.utils.filters import get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines, filter_service_intersections
 from src.utils.images import process_img_for_service_line_detection
-from src.utils.validators import validate_number
 
 from src.config import get_debug_mode
 
@@ -35,8 +33,8 @@ class CourtDetector:
         canny_upper_thresh: int = 100,
         hough_thresh: int = 50,
         min_line_len_ratio: float = 0.05,
-        min_line_gap_px: float = 5,
-        vertical_center_delta_px: int = 10,
+        min_line_gap_px: int = 5,
+        vertical_center_delta_px: int = 100,
         white_line_bin_lower_thresh: int = 150,
         white_line_bin_upper_thresh: int = 255,
     ):
