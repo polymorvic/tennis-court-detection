@@ -35,6 +35,7 @@ class BaselineParams(BaseModel):
         le=1.0,
     )
     min_line_gap_px: int = Field(default=10, gt=0)
+    h_line_slope_tolerance: float = Field(default=0.03, ge=0)
 
     @model_validator(mode="after")
     def validate_thresholds(self):

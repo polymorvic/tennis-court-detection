@@ -44,6 +44,7 @@ def run(
     hough_thresh = params.detection_params.baseline.hough_thresh
     min_line_len_ratio = params.detection_params.baseline.min_line_len_ratio
     min_line_gap_px = params.detection_params.baseline.min_line_gap_px
+    h_line_slope_tolerance = params.detection_params.baseline.h_line_slope_tolerance
 
     results = []
     not_found = []
@@ -68,7 +69,8 @@ def run(
             canny_upper_thresh,
             hough_thresh,
             min_line_len_ratio,
-            min_line_gap_px
+            min_line_gap_px,
+            h_line_slope_tolerance
         )
 
         if baseline is None:

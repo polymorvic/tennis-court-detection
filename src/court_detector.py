@@ -202,6 +202,7 @@ class CourtDetector:
         hough_thresh: int = 100,
         min_line_len_ratio: int = 0.15,
         min_line_gap_px: int = 10,
+        h_line_slope_tolerance: float = 0.03
     ):
         ch = self.center_crop_h
         crop = self.center_crop_img.copy()
@@ -234,7 +235,16 @@ class CourtDetector:
             if not lines:
                 continue
 
-            baseline_candidates = get_horizontal_lines(lines)
+            if get_debug_mode():
+                print('lines')
+                print(lines)
+
+            baseline_candidates = get_horizontal_lines(lines, h_line_slope_tolerance)
+
+            if get_debug_mode():
+                print('baseline candidates')
+                print(baseline_candidates)
+
             if not baseline_candidates or len(baseline_candidates) < 2:
                 continue
 
