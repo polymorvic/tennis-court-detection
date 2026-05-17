@@ -33,7 +33,8 @@ class LineDetectionParams(BaseModel):
     vertical_center_delta_px: int = Field(ge = 0)
     white_line_bin_lower_thresh: int = Field(ge = 0, le=255)
     white_line_bin_upper_thresh: int = Field(ge = 0, le=255)
-
+    white_line_bin_upper_thresh: int = Field(ge = 0, le=255)
+    max_spread_vlines_px: int
 
     @model_validator(mode="after")
     def validate_thresholds(self):
