@@ -37,6 +37,7 @@ class CourtDetector:
         vertical_center_delta_px: int = 100,
         white_line_bin_lower_thresh: int = 150,
         white_line_bin_upper_thresh: int = 255,
+        max_spread_vlines_px: int = 10
     ):
         ch = self.center_crop_h
         cw = self.center_crop_w
@@ -92,7 +93,7 @@ class CourtDetector:
             if not centre_service_line_candidates:
                 continue
 
-            centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px)
+            centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px, max_spread_vlines_px)
             
             if get_debug_mode():
                 print('centre_service_line_candidates after ---')
