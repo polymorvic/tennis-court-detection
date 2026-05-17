@@ -33,6 +33,7 @@ def lines_from_bin_img(
 ) -> list[Line] | None:
     img = check_if_numpy_image(img)
     edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
+    edges = straighten_rows(edges)
     segments = cv2.HoughLinesP(
         edges,
         rho=1,
@@ -148,4 +149,17 @@ def load_process_params(path: Path | str) -> Params:
 def load_pics_blacklist(path: Path | str) -> PicsBlacklist:
     data = load_yaml(path)
     return PicsBlacklist.model_validate(data)
+
+
+def angle_between_lines(
+    line1: Line, 
+    line2: Line
+) -> float:
+    def line_angle(line):
+        if line.xv is not None:
+            return 90.0
+
+        return np.degrees(np.arctan2(line.slope, 1)) % 360
+
+    return (line_angle(line2) - line_angle(line1)) % 360
 
