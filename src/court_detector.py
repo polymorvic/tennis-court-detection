@@ -256,37 +256,36 @@ class CourtDetector:
             baseline = transform_line(baseline_candidate, roi, self.center_crop_margin, y)
 
             if baseline in lines_blacklist:
+                print('w blacklist')
                 continue
-
-            # if baseline.intercept / self.img.height > 0.85:
-            #     continue
 
             scoreboard_lines = lines_from_gray_img(
                 roi_gray,
-                canny_lower_thresh,
-                canny_upper_thresh,
-                hough_thresh,
-                0.01,
+                canny_lower_thresh + 80,
+                canny_upper_thresh + 100,
+                hough_thresh - 10,
+                0.03,
                 0,
             )
-            if not scoreboard_lines:
-                continue
 
-            intersections = set(compute_intersections(scoreboard_lines, roi))
             is_scoreboard = False
-            if intersections:
-                for inters in intersections:
-                    
-                    if abs(inters.angle % 180 - 90) == 0:
-                        is_scoreboard = True
-                        lines = [inters.line1, inters.line2]
-                        h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < h_line_slope_tolerance]
-                        if not h_line_local:
-                            continue
-                        h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
-                        lines_blacklist.add(h_line_global)
+            if scoreboard_lines:
+                intersections = set(compute_intersections(scoreboard_lines, roi))
+                
+                if intersections:
+                    for inters in intersections:
+                        
+                        if abs(inters.angle % 180 - 90) == 0:
+                            is_scoreboard = True
+                            lines = [inters.line1, inters.line2]
+                            h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < h_line_slope_tolerance]
+                            if not h_line_local:
+                                continue
+                            h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
+                            lines_blacklist.add(h_line_global)
 
             if is_scoreboard:
+                print('w scoreboard')
                 baseline = None
                 continue
 
@@ -301,6 +300,7 @@ class CourtDetector:
             )
             
             if not is_baseline:
+                print('w not is_baseline')
                 lines_blacklist.add(baseline)
                 baseline = None
                 continue
