@@ -2,9 +2,10 @@ from cvgeomkit.common import ArrayLike, Numeric
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.intersections import Intersection
 from src.schemas.config import ServiceSide
-from cvgeomkit.geometry.lines import Line
+from cvgeomkit.geometry.lines import Line, transform_line
 
 from src.utils.validators import check_if_numpy_image, validate_number
+from src.utils.helpers import lines_from_gray_img
 
 
 def filter_horizontal_lines(
@@ -88,3 +89,54 @@ def filter_service_intersections(
         if h_key in keys and v_key in keys:
             return h_line, v_line, intersection.point
     return None
+
+
+def ensure_is_baseline(
+    baseline_candidate: Line,
+    img_gray: ArrayLike,
+    canny_lower_thresh: int,
+    canny_upper_thresh: int,
+    hough_thresh: int,
+    min_line_len_ensure_ratio: float = 0.03,
+    min_line_gap_px: int = 5,
+    h_delta: int = 100,
+    votes_thresh: int = 4
+) -> bool:
+    img_gray = check_if_numpy_image(img_gray)
+    h = int(baseline_candidate.intercept)
+
+    y0 = max(0, h - h_delta)
+    y1 = min(img_gray.height, h + 5)
+
+    roi_gray = img_gray[y0:y1].copy()
+    
+    if roi_gray.height < 5:
+        return False
+
+    lines = lines_from_gray_img(
+        roi_gray, 
+        canny_lower_thresh,
+        canny_upper_thresh,
+        hough_thresh,
+        min_line_len_ensure_ratio,
+        min_line_gap_px
+    )
+
+    if not lines:
+        return False
+    
+    lines = filter_horizontal_lines(lines, horizontal=False)
+    if not lines:
+        return False
+    
+    lines_global = [transform_line(line, roi_gray, 0, y0) for line in lines]
+    
+    votes = 0
+    for line in lines_global:
+        x_axis_angle = line.theta
+        if -90 < x_axis_angle -10 or 10 < x_axis_angle < 90:
+            votes += 1
+
+    return votes > votes_thresh
+
+
