@@ -7,9 +7,10 @@ from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections
 
 from src.schemas.config import ServiceSide
-from src.utils.helpers import crop_center_img, lines_from_bin_img
+from src.utils.helpers import crop_center_img, lines_from_gray_img
                               
-from src.utils.filters import get_horizontal_lines, get_vertical_lines, get_centre_vertical_lines, filter_service_intersections
+from src.utils.filters import (filter_horizontal_lines, get_vertical_lines, get_centre_vertical_lines, 
+                               filter_service_intersections, ensure_is_baseline)
 from src.utils.images import process_img_for_service_line_detection
 
 from src.config import get_debug_mode
@@ -26,10 +27,11 @@ class CourtDetector:
         
     ):
         self.img = NumpyImage(img)
+        self.img_gray = NumpyImage(cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY))
         self.roi_h_px = roi_h_px
         self.step_px = step_px
         self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_ratio)
-        self.center_crop_img_gray = cv2.cvtColor(self.center_crop_img, cv2.COLOR_RGB2GRAY)
+        self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_ratio)[0]
 
 
     def scan_for_service_lines(
@@ -72,7 +74,7 @@ class CourtDetector:
             roi_gray = crop_gray[y:y + roi_h].copy()
             roi_bin = process_img_for_service_line_detection(roi_gray, white_line_bin_lower_thresh, white_line_bin_upper_thresh)
 
-            line_candidates = lines_from_bin_img(
+            line_candidates = lines_from_gray_img(
                 roi_bin, 
                 cw, 
                 canny_lower_thresh, 
@@ -201,6 +203,7 @@ class CourtDetector:
         canny_upper_thresh: int = 100,
         hough_thresh: int = 100,
         min_line_len_ratio: int = 0.15,
+        min_line_len_ensure_ratio: int = 0.01,
         min_line_gap_px: int = 10,
         h_line_slope_tolerance: float = 0.03
     ):
@@ -225,7 +228,7 @@ class CourtDetector:
 
             roi_gray = crop_gray[y:y + self.roi_h_px].copy()
 
-            lines = lines_from_bin_img(
+            lines = lines_from_gray_img(
                 roi_gray, 
                 canny_lower_thresh, 
                 canny_upper_thresh,
@@ -240,7 +243,7 @@ class CourtDetector:
                 print('lines')
                 print(lines)
 
-            baseline_candidates = get_horizontal_lines(lines, h_line_slope_tolerance)
+            baseline_candidates = filter_horizontal_lines(lines, h_line_slope_tolerance)
 
             if get_debug_mode():
                 print('baseline candidates')
@@ -255,10 +258,10 @@ class CourtDetector:
             if baseline in lines_blacklist:
                 continue
 
-            if baseline.intercept / self.img.height > 0.85:
-                continue
+            # if baseline.intercept / self.img.height > 0.85:
+            #     continue
 
-            scoreboard_lines = lines_from_bin_img(
+            scoreboard_lines = lines_from_gray_img(
                 roi_gray,
                 canny_lower_thresh,
                 canny_upper_thresh,
@@ -268,7 +271,7 @@ class CourtDetector:
             )
             if not scoreboard_lines:
                 continue
-            
+
             intersections = set(compute_intersections(scoreboard_lines, roi))
             is_scoreboard = False
             if intersections:
@@ -284,6 +287,21 @@ class CourtDetector:
                         lines_blacklist.add(h_line_global)
 
             if is_scoreboard:
+                baseline = None
+                continue
+
+            is_baseline = ensure_is_baseline(
+                baseline, 
+                self.img_gray,
+                canny_lower_thresh + 80, 
+                canny_upper_thresh + 100,
+                hough_thresh, 
+                min_line_len_ensure_ratio,
+                min_line_gap_px
+            )
+            
+            if not is_baseline:
+                lines_blacklist.add(baseline)
                 baseline = None
                 continue
 
