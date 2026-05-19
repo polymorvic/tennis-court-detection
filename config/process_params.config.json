@@ -18,6 +18,7 @@
             "canny_upper_thresh": 100,
             "hough_thresh": 50,
             "min_line_len_ratio": 0.15,
+            "min_line_len_ensure_ratio": 0.01,
             "min_line_gap_px": 5,
             "h_line_slope_tolerance": 0.03
         }
