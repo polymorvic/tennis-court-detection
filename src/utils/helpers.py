@@ -23,7 +23,7 @@ def crop_center_img(
         return crop, ch, cw, margin
 
 
-def lines_from_bin_img(
+def lines_from_gray_img(
     img: ArrayLike,
     canny_lower_thresh: int,
     canny_upper_thresh: int,
