@@ -7,13 +7,27 @@ from cvgeomkit.geometry.lines import Line
 from src.utils.validators import check_if_numpy_image, validate_number
 
 
-def get_horizontal_lines(
+def filter_horizontal_lines(
     lines: list[Line],
-    slope_thresh: float = 0.01
+    slope_thresh: float = 0.01,
+    horizontal: bool = True,
 ) -> list[Line] | None:
     validate_number(slope_thresh, float, 0, 0.2)
-    lines = [line for line in lines if line.slope is not None and abs(line.slope) < slope_thresh]
-    return lines if lines else None
+
+    if horizontal:
+        filtered = [
+            line
+            for line in lines
+            if line.slope is not None and abs(line.slope) < slope_thresh
+        ]
+    else:
+        filtered = [
+            line
+            for line in lines
+            if line.slope is not None and abs(line.slope) > slope_thresh
+        ]
+
+    return filtered if filtered else None
 
 
 def get_vertical_lines(
