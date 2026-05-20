@@ -3,6 +3,7 @@ from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.intersections import Intersection
 from src.schemas.config import ServiceSide
 from cvgeomkit.geometry.lines import Line, transform_line
+from cvgeomkit.utils.plotting import display_img
 
 from src.utils.validators import check_if_numpy_image, validate_number
 from src.utils.helpers import lines_from_gray_img
@@ -101,7 +102,7 @@ def ensure_is_baseline(
     min_line_gap_px: int = 5,
     h_delta: int = 100,
     votes_thresh: int = 4
-) -> bool:
+) -> tuple[bool, list[Line]]:
     img_gray = check_if_numpy_image(img_gray)
     h = int(baseline_candidate.intercept)
 
@@ -111,7 +112,7 @@ def ensure_is_baseline(
     roi_gray = img_gray[y0:y1].copy()
     
     if roi_gray.height < 5:
-        return False
+        return False, []
 
     lines = lines_from_gray_img(
         roi_gray, 
@@ -123,20 +124,23 @@ def ensure_is_baseline(
     )
 
     if not lines:
-        return False
+        return False, []
     
     lines = filter_horizontal_lines(lines, horizontal=False)
     if not lines:
-        return False
+        return False, []
     
     lines_global = [transform_line(line, roi_gray, 0, y0) for line in lines]
     
     votes = 0
+    lines = []
     for line in lines_global:
         x_axis_angle = line.theta
-        if -90 < x_axis_angle -10 or 10 < x_axis_angle < 90:
+        intersection = baseline_candidate.intersection(line, img_gray)
+        if (-90 < x_axis_angle -10 or 10 < x_axis_angle < 90) and intersection is not None:
+            lines.append(line)
             votes += 1
 
-    return votes > votes_thresh
+    return votes > votes_thresh, lines
 
 
