@@ -65,7 +65,7 @@ def run(
         img = read_image_as_numpyimage(file)
 
         detector = CourtDetector(img, crop_center_ratio, roi_h_px, step_px)
-        baseline = detector.scan_for_baseline(
+        baseline, sidelines = detector.scan_for_baseline(
             warmup,
             canny_lower_thresh,
             canny_upper_thresh,

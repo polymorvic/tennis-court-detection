@@ -255,6 +255,10 @@ class CourtDetector:
             baseline_candidate = sorted(baseline_candidates, key=lambda line: line.intercept, reverse=True)[0]
             baseline = transform_line(baseline_candidate, roi, self.center_crop_margin, y)
 
+            if get_debug_mode():
+                print('baseline global')
+                print(baseline)
+
             if baseline in lines_blacklist:
                 print('w blacklist')
                 continue
@@ -289,7 +293,7 @@ class CourtDetector:
                 baseline = None
                 continue
 
-            is_baseline = ensure_is_baseline(
+            is_baseline, sidelines = ensure_is_baseline(
                 baseline, 
                 self.img_gray,
                 canny_lower_thresh + 80, 
@@ -307,7 +311,7 @@ class CourtDetector:
 
             break
 
-        return baseline
+        return baseline, sidelines
 
 
 
