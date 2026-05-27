@@ -34,168 +34,6 @@ class CourtDetector:
         self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_ratio)[0]
 
 
-    def scan_for_service_lines(
-        self,
-        service_side: ServiceSide,
-        roi_h: int = 80, 
-        step: int = 20, 
-        warmup: int = 15,
-        canny_lower_thresh: int = 25,
-        canny_upper_thresh: int = 100,
-        hough_thresh: int = 50,
-        min_line_len_ratio: float = 0.05,
-        min_line_gap_px: int = 5,
-        vertical_center_delta_px: int = 150,
-        white_line_bin_lower_thresh: int = 170,
-        white_line_bin_upper_thresh: int = 255,
-        max_spread_vlines_px: int = 10
-    ):
-        ch = self.center_crop_h
-        cw = self.center_crop_w
-        crop = self.center_crop_img.copy()
-        crop_gray = self.center_crop_img_gray.copy()
-        y = ch - roi_h
-        i = 0
-        service_line_local = None
-        centre_service_line_local = None
-        service_point_local = None
-        while y > 0:
-            i += 1
-            y -= step
-
-            if i < warmup:
-                continue
-
-            roi = crop[y:y + roi_h].copy()
-
-            if roi.size == 0:
-                return None
-
-            roi_gray = crop_gray[y:y + roi_h].copy()
-            roi_bin = process_img_for_service_line_detection(roi_gray, white_line_bin_lower_thresh, white_line_bin_upper_thresh)
-
-            line_candidates = lines_from_gray_img(
-                roi_bin, 
-                cw, 
-                canny_lower_thresh, 
-                canny_upper_thresh, 
-                hough_thresh, 
-                min_line_len_ratio, 
-                min_line_gap_px
-            )
-            if not line_candidates:
-                continue
-
-            service_line_candidates = get_horizontal_lines(line_candidates)
-            
-            if get_debug_mode():
-                print('service_line_candidates ---')
-                print(service_line_candidates)
-
-            if not service_line_candidates:
-                continue
-
-            centre_service_line_candidates = get_vertical_lines(line_candidates)
-
-            if get_debug_mode():
-                print('centre_service_line_candidates before ---')
-                print(centre_service_line_candidates)
-
-            if not centre_service_line_candidates:
-                continue
-
-            centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px, max_spread_vlines_px)
-            
-            if get_debug_mode():
-                print('centre_service_line_candidates after ---')
-                print(centre_service_line_candidates)
-
-            if not centre_service_line_candidates:
-                continue
-
-            intersections = set(compute_intersections(line_candidates, roi))
-            if not intersections:
-                continue
-
-            if get_debug_mode():
-                print('intersections')
-                print(intersections)
-
-            filtered = filter_service_intersections(
-                intersections,
-                service_line_candidates,
-                centre_service_line_candidates,
-                service_side
-            )
-
-            if filtered is None:
-                continue
-
-            if get_debug_mode():
-                print('filtered intersections')
-                print(filtered)
-
-            _, _, service_point_candidate = filtered
-            detection_y = y + service_point_candidate.y
-            if not 450 <= detection_y <= 720:
-                continue
-
-            service_line_local, centre_service_line_local, service_point_local = filtered
-
-            if get_debug_mode():
-                print('intersections ---')
-                print(intersections)
-
-                print('line candidates ---')
-                print(line_candidates)
-
-
-                print('service_line_candidates ---')
-                print(service_line_candidates)
-
-                print('centre_service_line_candidates ---')
-                print(centre_service_line_candidates)
-
-                roi_copy = roi.copy()
-                for line in line_candidates:
-                    p1, p2 = line.limit_to_img(roi_copy)
-                    cv2.line(roi_copy, p1, p2, (255, 0, 0), 2)
-
-                display_img(roi_copy)
-
-            break
-
-        if (
-            service_line_local is None
-            and centre_service_line_local is None
-            and service_point_local is None
-        ):
-            return None
-
-        service_line_global = transform_line(
-            service_line_local,
-            roi,
-            self.center_crop_margin,
-            y
-        )
-
-        centre_service_line_global = transform_line(
-            centre_service_line_local,
-            roi,
-            self.center_crop_margin,
-            y
-        )
-
-        service_point_global = transform_point(
-            service_point_local,
-            self.center_crop_margin,
-            y,
-        )
-
-
-        return service_line_global, centre_service_line_global, service_point_global
-    
-
     def scan_for_baseline(
         self,
         warmup: int = 5,
@@ -240,13 +78,11 @@ class CourtDetector:
                 continue
 
             if get_debug_mode():
-                print('lines')
                 print(lines)
 
             baseline_candidates = filter_horizontal_lines(lines, h_line_slope_tolerance)
 
             if get_debug_mode():
-                print('baseline candidates')
                 print(baseline_candidates)
 
             if not baseline_candidates:
@@ -260,7 +96,6 @@ class CourtDetector:
                 print(baseline)
 
             if baseline in lines_blacklist:
-                print('w blacklist')
                 continue
 
             scoreboard_lines = lines_from_gray_img(
@@ -289,7 +124,6 @@ class CourtDetector:
                             lines_blacklist.add(h_line_global)
 
             if is_scoreboard:
-                print('w scoreboard')
                 baseline = None
                 continue
 
@@ -304,7 +138,6 @@ class CourtDetector:
             )
             
             if not is_baseline:
-                print('w not is_baseline')
                 lines_blacklist.add(baseline)
                 baseline = None
                 continue
@@ -315,4 +148,163 @@ class CourtDetector:
 
 
 
+    # def scan_for_service_lines(
+    #     self,
+    #     service_side: ServiceSide,
+    #     roi_h: int = 80, 
+    #     step: int = 20, 
+    #     warmup: int = 15,
+    #     canny_lower_thresh: int = 25,
+    #     canny_upper_thresh: int = 100,
+    #     hough_thresh: int = 50,
+    #     min_line_len_ratio: float = 0.05,
+    #     min_line_gap_px: int = 5,
+    #     vertical_center_delta_px: int = 150,
+    #     white_line_bin_lower_thresh: int = 170,
+    #     white_line_bin_upper_thresh: int = 255,
+    #     max_spread_vlines_px: int = 10
+    # ):
+    #     ch = self.center_crop_h
+    #     cw = self.center_crop_w
+    #     crop = self.center_crop_img.copy()
+    #     crop_gray = self.center_crop_img_gray.copy()
+    #     y = ch - roi_h
+    #     i = 0
+    #     service_line_local = None
+    #     centre_service_line_local = None
+    #     service_point_local = None
+    #     while y > 0:
+    #         i += 1
+    #         y -= step
 
+    #         if i < warmup:
+    #             continue
+
+    #         roi = crop[y:y + roi_h].copy()
+
+    #         if roi.size == 0:
+    #             return None
+
+    #         roi_gray = crop_gray[y:y + roi_h].copy()
+    #         roi_bin = process_img_for_service_line_detection(roi_gray, white_line_bin_lower_thresh, white_line_bin_upper_thresh)
+
+    #         line_candidates = lines_from_gray_img(
+    #             roi_bin, 
+    #             cw, 
+    #             canny_lower_thresh, 
+    #             canny_upper_thresh, 
+    #             hough_thresh, 
+    #             min_line_len_ratio, 
+    #             min_line_gap_px
+    #         )
+    #         if not line_candidates:
+    #             continue
+
+    #         service_line_candidates = get_horizontal_lines(line_candidates)
+            
+    #         if get_debug_mode():
+    #             print('service_line_candidates ---')
+    #             print(service_line_candidates)
+
+    #         if not service_line_candidates:
+    #             continue
+
+    #         centre_service_line_candidates = get_vertical_lines(line_candidates)
+
+    #         if get_debug_mode():
+    #             print('centre_service_line_candidates before ---')
+    #             print(centre_service_line_candidates)
+
+    #         if not centre_service_line_candidates:
+    #             continue
+
+    #         centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px, max_spread_vlines_px)
+            
+    #         if get_debug_mode():
+    #             print('centre_service_line_candidates after ---')
+    #             print(centre_service_line_candidates)
+
+    #         if not centre_service_line_candidates:
+    #             continue
+
+    #         intersections = set(compute_intersections(line_candidates, roi))
+    #         if not intersections:
+    #             continue
+
+    #         if get_debug_mode():
+    #             print('intersections')
+    #             print(intersections)
+
+    #         filtered = filter_service_intersections(
+    #             intersections,
+    #             service_line_candidates,
+    #             centre_service_line_candidates,
+    #             service_side
+    #         )
+
+    #         if filtered is None:
+    #             continue
+
+    #         if get_debug_mode():
+    #             print('filtered intersections')
+    #             print(filtered)
+
+    #         _, _, service_point_candidate = filtered
+    #         detection_y = y + service_point_candidate.y
+    #         if not 450 <= detection_y <= 720:
+    #             continue
+
+    #         service_line_local, centre_service_line_local, service_point_local = filtered
+
+    #         if get_debug_mode():
+    #             print('intersections ---')
+    #             print(intersections)
+
+    #             print('line candidates ---')
+    #             print(line_candidates)
+
+
+    #             print('service_line_candidates ---')
+    #             print(service_line_candidates)
+
+    #             print('centre_service_line_candidates ---')
+    #             print(centre_service_line_candidates)
+
+    #             roi_copy = roi.copy()
+    #             for line in line_candidates:
+    #                 p1, p2 = line.limit_to_img(roi_copy)
+    #                 cv2.line(roi_copy, p1, p2, (255, 0, 0), 2)
+
+    #             display_img(roi_copy)
+
+    #         break
+
+    #     if (
+    #         service_line_local is None
+    #         and centre_service_line_local is None
+    #         and service_point_local is None
+    #     ):
+    #         return None
+
+    #     service_line_global = transform_line(
+    #         service_line_local,
+    #         roi,
+    #         self.center_crop_margin,
+    #         y
+    #     )
+
+    #     centre_service_line_global = transform_line(
+    #         centre_service_line_local,
+    #         roi,
+    #         self.center_crop_margin,
+    #         y
+    #     )
+
+    #     service_point_global = transform_point(
+    #         service_point_local,
+    #         self.center_crop_margin,
+    #         y,
+    #     )
+
+
+    #     return service_line_global, centre_service_line_global, service_point_global

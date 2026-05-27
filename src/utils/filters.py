@@ -100,11 +100,13 @@ def ensure_is_baseline(
     hough_thresh: int,
     min_line_len_ensure_ratio: float = 0.03,
     min_line_gap_px: int = 5,
-    h_delta: int = 100,
+    h_delta_ratio: float = 0.08,
     votes_thresh: int = 4
 ) -> tuple[bool, list[Line]]:
     img_gray = check_if_numpy_image(img_gray)
     h = int(baseline_candidate.intercept)
+
+    h_delta = int(img_gray.height * h_delta_ratio)
 
     y0 = max(0, h - h_delta)
     y1 = min(img_gray.height, h + 5)
