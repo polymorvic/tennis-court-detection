@@ -67,16 +67,16 @@ h_delta_ensure_px = params_court_detection.detection_params.baseline.h_delta_ens
 
 cap = cv2.VideoCapture("test_video.mov")
 i = 0
+has_moved_to_front_camera = False
 while True:
     i += 1
     ret, frame = cap.read()
 
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     if not ret:
         print("the end")
         break
-
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     with torch.no_grad():
         img_tensor = transform(frame)
@@ -87,28 +87,33 @@ while True:
         if prediction > 0.5:
             tekst = "OK"
 
-            detector = CourtDetector(frame, crop_center_ratio, roi_h_px, step_px)
+            if not has_moved_to_front_camera:
+                has_moved_to_front_camera = True
 
-            baseline, sidelines  = detector.scan_for_baseline(
-                warmup,
-                canny_lower_thresh,
-                canny_upper_thresh,
-                hough_thresh,
-                min_line_len_ratio,
-                min_line_len_ensure_ratio,
-                min_line_gap_px,
-                h_line_slope_tolerance
-            )
 
-            if not baseline:
-                continue
+                detector = CourtDetector(frame, crop_center_ratio, roi_h_px, step_px)
 
-            p1, p2 = baseline.limit_to_img(frame)
+                baseline, sidelines  = detector.scan_for_baseline(
+                    warmup,
+                    canny_lower_thresh,
+                    canny_upper_thresh,
+                    hough_thresh,
+                    min_line_len_ratio,
+                    min_line_len_ensure_ratio,
+                    min_line_gap_px,
+                    h_line_slope_tolerance
+                )
+
+                if not baseline:
+                    continue
+
+                p1, p2 = baseline.limit_to_img(frame)
 
             cv2.line(frame, p1, p2, (0, 0, 255), 4)
 
 
         else:
+            has_moved_to_front_camera = False
             tekst = "NIE OK"
 
             # cv2.imwrite(f"bad_frames/bad_frame_{i:04}.png", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
