@@ -18,3 +18,4 @@ data/
 *.txt
 *.mov
 .DS_Store
+*.pt
