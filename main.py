@@ -1,10 +1,10 @@
 import cv2
 from torch import nn
-from src.court_detector import CourtDetector
+from tennis_court_detection.court_detector import CourtDetector
 import torch
 from torchvision import models
 from torch import nn
-from src.utils.helpers import load_process_params
+from tennis_court_detection.utils.helpers import load_process_params
 
 import torch
 from torchvision.transforms import Compose, Resize, Normalize, ToPILImage, ToTensor
