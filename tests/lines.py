@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
-from src.utils.annotations import TennisCourtAnnotationCollection
-from src.utils.testing import (build_output_dir, gt_hline_from_annotation, 
+from tennis_court_detection.utils.annotations import TennisCourtAnnotationCollection
+from tennis_court_detection.utils.testing import (build_output_dir, gt_hline_from_annotation, 
                                save_test_histogram, prepare_test_results_report, draw_results_on_img)
-from src.utils.helpers import load_process_params, load_pics_blacklist
-from src.schemas.testing import TestType
-from src.court_detector import CourtDetector
-from src.utils.annotations import transform_keypoint_annotation
+from tennis_court_detection.utils.helpers import load_process_params, load_pics_blacklist
+from tennis_court_detection.schemas.testing import TestType
+from tennis_court_detection.court_detector import CourtDetector
+from tennis_court_detection.utils.annotations import transform_keypoint_annotation
 
 from cvgeomkit.utils.helpers import read_image_as_numpyimage
 from cvgeomkit.geometry.points import Point
