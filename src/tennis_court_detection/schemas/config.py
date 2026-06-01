@@ -19,29 +19,33 @@ class MatchParams(BaseModel):
 
 
 class BasicParams(BaseModel):
-    roi_h_px: int = Field(default=80, gt=0)
-    step_px: int = Field(default=20, gt=0)
-    crop_center_ratio: float = Field(default=0.4, gt=0, le=1.0)
+    roi_height_ratio: float = Field(default=0.075, gt=0, le=1.0)
+    step_height_ratio: float = Field(default=0.02, gt=0, le=0.1)
+    crop_center_width_ratio: float = Field(default=0.4, gt=0, le=1.0)
 
 
 class BaselineParams(BaseModel):
-    warmup: int = Field(default=15, ge=0)
+    warmup_height_ratio: float = Field(default=0.1, ge=0, le=0.5)
     canny_lower_thresh: int = Field(default=20, ge=0)
     canny_upper_thresh: int = Field(default=100, ge=0)
-    hough_thresh: int = Field(default=100, gt=0)
-    min_line_len_ratio: float = Field(
+    canny_lower_thresh_offset: int = Field(default=80, ge=0)
+    canny_upper_thresh_offset: int = Field(default=100, ge=0)
+    hough_thresh: int = Field(default=50, gt=0)
+    hough_thresh_offset: int = Field(default=-10, le=0)
+
+    min_line_len_width_ratio: float = Field(
         default=0.15,
         gt=0.0,
         le=1.0,
     )
-    min_line_len_ensure_ratio: float = Field(
-        default=0.01,
+    min_line_len_ensure_width_ratio: float = Field(
+        default=0.03,
         gt=0.0,
         le=0.05
     )
-    min_line_gap_px: int = Field(default=10, gt=0)
-    h_line_slope_tolerance: float = Field(default=0.03, ge=0)
-    h_delta_ensure_px: int = Field(default=150, gt=10, le=200)
+    max_line_gap_width_ratio: float = Field(default=0.005, ge=0)
+    horizontal_line_slope_tolerance: float = Field(default=0.03, ge=0)
+    delta_ensure_height_ratio: float = Field(default=0.1, ge=0)
 
     @model_validator(mode="after")
     def validate_thresholds(self):
@@ -51,35 +55,6 @@ class BaselineParams(BaseModel):
                 "canny_upper_thresh"
             )
         return self
-
-
-# class LineDetectionParams(BaseModel):
-#     canny_lower_thresh: int = Field(ge = 0)
-#     canny_upper_thresh: int = Field(ge = 0)
-#     hough_thresh: int = Field(ge = 0)
-#     min_line_len_ratio: float = Field(ge = 0)
-#     min_line_gap_px: int = Field(ge = 0)
-#     vertical_center_delta_px: int = Field(ge = 0)
-#     white_line_bin_lower_thresh: int = Field(ge = 0, le=255)
-#     white_line_bin_upper_thresh: int = Field(ge = 0, le=255)
-#     white_line_bin_upper_thresh: int = Field(ge = 0, le=255)
-#     max_spread_vlines_px: int
-
-#     @model_validator(mode="after")
-#     def validate_thresholds(self):
-#         if self.canny_lower_thresh >= self.canny_upper_thresh:
-#             raise ValueError(
-#                 "canny_lower_thresh must be smaller than "
-#                 "canny_upper_thresh"
-#             )
-
-#         if self.white_line_bin_lower_thresh > self.white_line_bin_upper_thresh:
-#             raise ValueError(
-#                 "white_line_bin_lower_thresh must be smaller "
-#                 "than or equal to white_line_bin_upper_thresh"
-#             )
-        
-#         return self
 
 
 class DetectionParams(BaseModel):
