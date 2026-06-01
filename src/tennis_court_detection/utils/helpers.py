@@ -11,16 +11,16 @@ from tennis_court_detection.config import get_debug_mode
 
 
 def crop_center_img(
-        img: ArrayLike, 
-        crop_ratio: float = 0.4
+    img: ArrayLike, 
+    crop_ratio: float = 0.4
 ) -> tuple[ArrayLike, int, int, int]:
-        validate_number(crop_ratio, float, 0, 1, min_inclusive=False)
-        img = check_if_numpy_image(img)
-        w = img.width
-        margin = int((1 - crop_ratio) * w / 2)
-        crop = img[:, margin:w - margin]
-        ch, cw = crop.height, crop.width
-        return crop, ch, cw, margin
+    validate_number(crop_ratio, float, 0, 1, min_inclusive=False)
+    img = check_if_numpy_image(img)
+    w = img.width
+    margin = int((1 - crop_ratio) * w / 2)
+    crop = img[:, margin:w - margin]
+    ch, cw = crop.height, crop.width
+    return crop, ch, cw, margin
 
 
 def lines_from_gray_img(
@@ -28,19 +28,19 @@ def lines_from_gray_img(
     canny_lower_thresh: int,
     canny_upper_thresh: int,
     hough_thresh: int,
-    min_line_len_ratio: int,
-    min_line_gap: int
+    min_line_len_px: int,
+    max_line_gap_px: float
 ) -> list[Line] | None:
     img = check_if_numpy_image(img)
     edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
     edges = straighten_rows(edges)
     segments = cv2.HoughLinesP(
         edges,
-        rho=1,
-        theta=np.pi / 180,
-        threshold=hough_thresh,
-        minLineLength=int(min_line_len_ratio * img.width),
-        maxLineGap=min_line_gap
+        rho = 1,
+        theta = np.pi / 180,
+        threshold = hough_thresh,
+        minLineLength = min_line_len_px,
+        maxLineGap = max_line_gap_px
     )
 
     if get_debug_mode():
@@ -53,7 +53,7 @@ def lines_from_gray_img(
         display_img(img_copy)
 
     if segments is None:
-         return
+        return
     
     return [Line.from_hough_segment(*segment) for segment in segments]
 
