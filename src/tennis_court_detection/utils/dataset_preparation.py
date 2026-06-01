@@ -3,13 +3,17 @@ from collections import defaultdict
 import cv2
 from sklearn.model_selection import train_test_split
 from tennis_court_detection.utils.helpers import pipette_color
+import pandas as pd
 
 
-def prepare_dataset_for_shot_classification(images_path: Path, skip_images_path: Path):
+def prepare_dataset_for_shot_classification(
+    images_path: Path, 
+    skip_images_path: Path,
+    dataset_file_output_path: Path
+) -> None:
 
     images = [file.name for file in images_path.glob('*.png')]
     skip_images = [file.name for file in skip_images_path.glob('*.png')]
-
 
     skip_train, skip_temp = train_test_split(skip_images, test_size=0.3, random_state=123)
     skip_val, skip_test = train_test_split(skip_temp, test_size=0.5, random_state=123)
@@ -66,6 +70,24 @@ def prepare_dataset_for_shot_classification(images_path: Path, skip_images_path:
 
             if should_break:
                 break
+
+    dataset_names = (['train', 'val', 'test'])
+    dfs = []
+    for t in range(3):
+
+        print(len(img_datasets[t]), len(skip_datasets[t]))
+
+
+        df = pd.DataFrame({
+            'img_name': img_datasets[t] + skip_datasets[t],
+            'dataset': [dataset_names[t]] * (len(img_datasets[t]) + len(skip_datasets[t])),
+            'label': [1] * len(img_datasets[t]) + [0] * len(skip_datasets[t])
+        })
+        dfs.append(df)
+
+    df_dataset = pd.concat(dfs)
+
+    df_dataset.to_csv(dataset_file_output_path, index=False)
 
 
     
