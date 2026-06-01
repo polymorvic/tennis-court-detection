@@ -19,3 +19,4 @@ data/
 *.mov
 .DS_Store
 *.pt
+*.ipynb
