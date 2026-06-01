@@ -2,6 +2,8 @@ from torchvision import models
 import torch.nn as nn
 import torch
 
+from tennis_court_detection.training.device import get_device
+
 
 def build_resnet50_model(
     weights: models.ResNet50_Weights | None = models.ResNet50_Weights.DEFAULT,
@@ -22,8 +24,10 @@ def build_resnet50_model(
 
 
 def load_resnet50_model(params_path: str) -> models.ResNet:
+    device = get_device()
     model = build_resnet50_model(weights=None)
     params = torch.load(params_path)["model"]
     model.load_state_dict(params)
+    model.to(device)
     model.eval()
     return model
