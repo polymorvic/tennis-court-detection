@@ -13,9 +13,15 @@ class MatchType(StrEnum):
     DOUBLES = "doubles"
 
 
+class Surface(StrEnum):
+    CLAY = "clay"
+    OTHER = "other"
+
+
 class MatchParams(BaseModel):
     service_side: ServiceSide
     match_type: MatchType
+    surface: Surface
 
 
 class BasicParams(BaseModel):
