@@ -4,10 +4,12 @@ import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.utils.plotting import display_img
+from cvgeomkit.common import ArrayLike
 import numpy as np
 
 from tennis_court_detection.config import get_debug_mode
 from tennis_court_detection.utils.filters import filter_horizontal_lines
+from tennis_court_detection.schemas.config import HorizontalTraverseDirection
 
 
 def interpolate_lines_intercept(lines: list[Line | None]) -> list[Line]:
@@ -32,6 +34,26 @@ def build_points(
         p2 = Point(x2, int(line.intercept))
         points.append((p1, p2))
     return points
+
+
+def adjust_lines_intercept(
+    lines: list[Line]
+) -> list[Line]:
+    for x in range(len(lines)):
+
+        if x == 0 or x == len(lines) - 1:
+            continue
+
+        prev_i = lines[x - 1].intercept
+        curr_i = lines[x].intercept
+        next_i = lines[x + 1].intercept
+
+        avg = (prev_i + next_i) / 2
+
+        if abs(curr_i - avg) > 2:
+            lines[x].intercept = int(avg)
+
+    return lines
 
 
 def traverse_horizontal_line(
@@ -81,7 +103,7 @@ def traverse_horizontal_line(
         
         sub_lines = filter_horizontal_lines(sub_lines)
         if sub_lines:
-            print(sorted(sub_lines, key = lambda line: line.intercept))
+            # print(sorted(sub_lines, key = lambda line: line.intercept))
             bottom_line = sorted(sub_lines, key = lambda line: line.intercept)[-1]
             bottom_line_global = transform_line(bottom_line, crop, x1, p_c.y - h_delta)
             lines.append(bottom_line_global)
@@ -103,14 +125,28 @@ def traverse_horizontal_line(
             display_img(crop_copy)
             cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
 
+    interpolated_lines = interpolate_lines_intercept(lines)
+    interpolated_lines = adjust_lines_intercept(interpolated_lines)
+
     if get_debug_mode():
+        print(f'before adjust: {interpolated_lines=}')
+        print(f'after adjust: {interpolated_lines=}')
         display_img(crop_copy)
         cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
         display_img(img_copy)
 
-    interpolated_lines = interpolate_lines_intercept(lines)
+    return build_points(interpolated_lines, segment_xs)
 
-    for line in interpolated_lines:
-        print(line)
 
-    return interpolated_lines, build_points(interpolated_lines, segment_xs)
+def adjust_horizontal_line(
+    img: ArrayLike,
+    left_point: Point,
+    right_point: Point,
+    step = 50,
+    height_delta = 20
+) -> list[tuple[Point, Point]]:
+    points = traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.LEFT, step, height_delta)
+    points.extend(
+        traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.RIGHT, step, height_delta)
+    )
+    return points
