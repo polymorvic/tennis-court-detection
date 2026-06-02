@@ -21,6 +21,19 @@ def interpolate_lines_intercept(lines: list[Line | None]) -> list[Line]:
     return [Line(slope=0, intercept=intercept) for intercept in intercepts]
 
 
+def build_points(
+    lines: list[Line], 
+    segment_xs: list[tuple[int, int]]
+) -> list[tuple[Point, Point]]:
+    
+    points = []
+    for line, (x1, x2) in zip(lines, segment_xs):
+        p1 = Point(x1, int(line.intercept))
+        p2 = Point(x2, int(line.intercept))
+        points.append((p1, p2))
+    return points
+
+
 def traverse_horizontal_line(
     img: np.ndarray,
     p_left: Point,
@@ -41,6 +54,7 @@ def traverse_horizontal_line(
     img_copy = img.copy()
 
     lines = []
+    segment_xs = []
     while {'left': x2 > p_left.x, 'right': x1 < p_right.x}[direction]:
 
         crop = img[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
@@ -69,10 +83,13 @@ def traverse_horizontal_line(
         if sub_lines:
             print(sorted(sub_lines, key = lambda line: line.intercept))
             bottom_line = sorted(sub_lines, key = lambda line: line.intercept)[-1]
-            bottom_line_global = transform_line(bottom_line, crop, x1, p_c.y)
+            bottom_line_global = transform_line(bottom_line, crop, x1, p_c.y - h_delta)
             lines.append(bottom_line_global)
         else:
             lines.append(None)
+
+
+        segment_xs.append((min(x1, x2), max(x1, x2)))
     
         if direction == 'left':
             x2 = x1
@@ -90,3 +107,10 @@ def traverse_horizontal_line(
         display_img(crop_copy)
         cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
         display_img(img_copy)
+
+    interpolated_lines = interpolate_lines_intercept(lines)
+
+    for line in interpolated_lines:
+        print(line)
+
+    return interpolated_lines, build_points(interpolated_lines, segment_xs)
