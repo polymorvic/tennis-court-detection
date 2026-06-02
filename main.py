@@ -26,21 +26,12 @@ def run(
     model = load_resnet50_model(shot_classifier_params_path)
     model.to(device)
 
+
     params_court_detection = load_process_params(params_config_path)
 
-    crop_center_ratio = params_court_detection.detection_params.basic.crop_center_ratio
-    roi_h_px = params_court_detection.detection_params.basic.roi_h_px
-    step_px = params_court_detection.detection_params.basic.step_px
-
-    warmup = params_court_detection.detection_params.baseline.warmup
-    canny_lower_thresh = params_court_detection.detection_params.baseline.canny_lower_thresh
-    canny_upper_thresh = params_court_detection.detection_params.baseline.canny_upper_thresh
-    hough_thresh = params_court_detection.detection_params.baseline.hough_thresh
-    min_line_len_ratio = params_court_detection.detection_params.baseline.min_line_len_ratio
-    min_line_len_ensure_ratio = params_court_detection.detection_params.baseline.min_line_len_ensure_ratio
-    min_line_gap_px = params_court_detection.detection_params.baseline.min_line_gap_px
-    h_line_slope_tolerance = params_court_detection.detection_params.baseline.h_line_slope_tolerance
-    h_delta_ensure_px = params_court_detection.detection_params.baseline.h_delta_ensure_px
+    basic_params = params_court_detection.detection_params.basic
+    surface = params_court_detection.match_params.surface
+    baseline_params = params_court_detection.detection_params.baseline
 
     cap = cv2.VideoCapture(video_path)
     i = 0
@@ -64,18 +55,13 @@ def run(
             if prediction > 0.5:
                 tekst = "OK"
 
-                detector = CourtDetector(frame, crop_center_ratio, roi_h_px, step_px)
+                detector = CourtDetector(frame, **basic_params.model_dump(), surface=surface)
+                result = detector.scan_for_baseline(**baseline_params.model_dump())
 
-                baseline, sidelines  = detector.scan_for_baseline(
-                    warmup,
-                    canny_lower_thresh,
-                    canny_upper_thresh,
-                    hough_thresh,
-                    min_line_len_ratio,
-                    min_line_len_ensure_ratio,
-                    min_line_gap_px,
-                    h_line_slope_tolerance
-                )
+                if result is None:
+                    continue
+                else:
+                    baseline, sidelines = result
 
                 if not baseline:
                     continue
