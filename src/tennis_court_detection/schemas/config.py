@@ -15,7 +15,8 @@ class MatchType(StrEnum):
 
 class Surface(StrEnum):
     CLAY = "clay"
-    OTHER = "other"
+    GRASS = "grass"
+    HARD = "hard"
 
 
 class MatchParams(BaseModel):
