@@ -6,7 +6,7 @@ from cvgeomkit.geometry.lines import transform_line
 from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections
 
-from tennis_court_detection.schemas.config import ServiceSide
+from tennis_court_detection.schemas.config import ServiceSide, Surface
 from tennis_court_detection.utils.helpers import crop_center_img, lines_from_gray_img
                               
 from tennis_court_detection.utils.filters import (filter_horizontal_lines, get_vertical_lines, get_centre_vertical_lines, 
@@ -21,30 +21,39 @@ class CourtDetector:
     def __init__(
         self, 
         img: ArrayLike,
-        crop_center_ratio: float = 0.4,
-        roi_h_px: int = 80,
-        step_px: int = 20,
-        
+        crop_center_width_ratio: float,
+        roi_height_ratio: float,
+        step_height_ratio: float,
+        surface: Surface
     ):
         self.img = NumpyImage(img)
         self.img_gray = NumpyImage(cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY))
-        self.roi_h_px = roi_h_px
-        self.step_px = step_px
-        self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_ratio)
-        self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_ratio)[0]
+        self.roi_h_px = int(roi_height_ratio * self.img.height)
+        self.step_px = int(step_height_ratio * self.img.height)
+        self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_width_ratio)
+        self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_width_ratio)[0]
+
+        if surface == Surface.CLAY:
+            self.center_crop_img_gray = cv2.bilateralFilter(self.center_crop_img_gray, d=9, sigmaColor=30, sigmaSpace=30)
 
 
     def scan_for_baseline(
         self,
-        warmup: int = 5,
-        canny_lower_thresh: int = 20,
-        canny_upper_thresh: int = 100,
-        hough_thresh: int = 100,
-        min_line_len_ratio: int = 0.15,
-        min_line_len_ensure_ratio: int = 0.01,
-        min_line_gap_px: int = 10,
-        h_line_slope_tolerance: float = 0.03
+        warmup_height_ratio: float,
+        canny_lower_thresh: int,
+        canny_upper_thresh: int,
+        canny_lower_thresh_offset: int,
+        canny_upper_thresh_offset: int,
+        hough_thresh: int,
+        hough_thresh_offset: int,
+        min_line_len_width_ratio: float,
+        min_line_len_ensure_width_ratio: float,
+        max_line_gap_width_ratio: float,
+        horizontal_line_slope_tolerance: float,
+        delta_ensure_height_ratio: float
+
     ):
+        warmup = int(self.img.height / self.step_px * warmup_height_ratio)
         ch = self.center_crop_h
         crop = self.center_crop_img.copy()
         crop_gray = self.center_crop_img_gray.copy()
@@ -66,13 +75,15 @@ class CourtDetector:
 
             roi_gray = crop_gray[y:y + self.roi_h_px].copy()
 
+            min_line_len_px = int(min_line_len_width_ratio * roi.width)
+            max_line_gap_px = int(max_line_gap_width_ratio * roi.width)
             lines = lines_from_gray_img(
                 roi_gray, 
                 canny_lower_thresh, 
                 canny_upper_thresh,
                 hough_thresh, 
-                min_line_len_ratio,
-                min_line_gap_px
+                min_line_len_px,
+                max_line_gap_px
             )
             if not lines:
                 continue
@@ -80,7 +91,7 @@ class CourtDetector:
             if get_debug_mode():
                 print(lines)
 
-            baseline_candidates = filter_horizontal_lines(lines, h_line_slope_tolerance)
+            baseline_candidates = filter_horizontal_lines(lines, horizontal_line_slope_tolerance)
 
             if get_debug_mode():
                 print(baseline_candidates)
@@ -98,13 +109,15 @@ class CourtDetector:
             if baseline in lines_blacklist:
                 continue
 
+            min_line_len_px = int(min_line_len_ensure_width_ratio * roi.width)
+            max_line_gap_px = 0 
             scoreboard_lines = lines_from_gray_img(
                 roi_gray,
-                canny_lower_thresh + 80,
-                canny_upper_thresh + 100,
-                hough_thresh - 10,
-                0.03,
-                0,
+                canny_lower_thresh + canny_lower_thresh_offset,
+                canny_upper_thresh + canny_upper_thresh_offset,
+                hough_thresh + hough_thresh_offset,
+                min_line_len_px,
+                max_line_gap_px,
             )
 
             is_scoreboard = False
@@ -117,7 +130,7 @@ class CourtDetector:
                         if abs(inters.angle % 180 - 90) == 0:
                             is_scoreboard = True
                             lines = [inters.line1, inters.line2]
-                            h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < h_line_slope_tolerance]
+                            h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < horizontal_line_slope_tolerance]
                             if not h_line_local:
                                 continue
                             h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
@@ -130,11 +143,13 @@ class CourtDetector:
             is_baseline, sidelines = ensure_is_baseline(
                 baseline, 
                 self.img_gray,
-                canny_lower_thresh + 80, 
-                canny_upper_thresh + 100,
+                roi.width,
+                canny_lower_thresh + canny_lower_thresh_offset, 
+                canny_upper_thresh + canny_upper_thresh_offset,
                 hough_thresh, 
-                min_line_len_ensure_ratio,
-                min_line_gap_px
+                min_line_len_width_ratio,
+                max_line_gap_width_ratio,
+                delta_ensure_height_ratio,
             )
             
             if not is_baseline:
@@ -146,165 +161,3 @@ class CourtDetector:
 
         return baseline, sidelines
 
-
-
-    # def scan_for_service_lines(
-    #     self,
-    #     service_side: ServiceSide,
-    #     roi_h: int = 80, 
-    #     step: int = 20, 
-    #     warmup: int = 15,
-    #     canny_lower_thresh: int = 25,
-    #     canny_upper_thresh: int = 100,
-    #     hough_thresh: int = 50,
-    #     min_line_len_ratio: float = 0.05,
-    #     min_line_gap_px: int = 5,
-    #     vertical_center_delta_px: int = 150,
-    #     white_line_bin_lower_thresh: int = 170,
-    #     white_line_bin_upper_thresh: int = 255,
-    #     max_spread_vlines_px: int = 10
-    # ):
-    #     ch = self.center_crop_h
-    #     cw = self.center_crop_w
-    #     crop = self.center_crop_img.copy()
-    #     crop_gray = self.center_crop_img_gray.copy()
-    #     y = ch - roi_h
-    #     i = 0
-    #     service_line_local = None
-    #     centre_service_line_local = None
-    #     service_point_local = None
-    #     while y > 0:
-    #         i += 1
-    #         y -= step
-
-    #         if i < warmup:
-    #             continue
-
-    #         roi = crop[y:y + roi_h].copy()
-
-    #         if roi.size == 0:
-    #             return None
-
-    #         roi_gray = crop_gray[y:y + roi_h].copy()
-    #         roi_bin = process_img_for_service_line_detection(roi_gray, white_line_bin_lower_thresh, white_line_bin_upper_thresh)
-
-    #         line_candidates = lines_from_gray_img(
-    #             roi_bin, 
-    #             cw, 
-    #             canny_lower_thresh, 
-    #             canny_upper_thresh, 
-    #             hough_thresh, 
-    #             min_line_len_ratio, 
-    #             min_line_gap_px
-    #         )
-    #         if not line_candidates:
-    #             continue
-
-    #         service_line_candidates = get_horizontal_lines(line_candidates)
-            
-    #         if get_debug_mode():
-    #             print('service_line_candidates ---')
-    #             print(service_line_candidates)
-
-    #         if not service_line_candidates:
-    #             continue
-
-    #         centre_service_line_candidates = get_vertical_lines(line_candidates)
-
-    #         if get_debug_mode():
-    #             print('centre_service_line_candidates before ---')
-    #             print(centre_service_line_candidates)
-
-    #         if not centre_service_line_candidates:
-    #             continue
-
-    #         centre_service_line_candidates = get_centre_vertical_lines(centre_service_line_candidates, roi, vertical_center_delta_px, max_spread_vlines_px)
-            
-    #         if get_debug_mode():
-    #             print('centre_service_line_candidates after ---')
-    #             print(centre_service_line_candidates)
-
-    #         if not centre_service_line_candidates:
-    #             continue
-
-    #         intersections = set(compute_intersections(line_candidates, roi))
-    #         if not intersections:
-    #             continue
-
-    #         if get_debug_mode():
-    #             print('intersections')
-    #             print(intersections)
-
-    #         filtered = filter_service_intersections(
-    #             intersections,
-    #             service_line_candidates,
-    #             centre_service_line_candidates,
-    #             service_side
-    #         )
-
-    #         if filtered is None:
-    #             continue
-
-    #         if get_debug_mode():
-    #             print('filtered intersections')
-    #             print(filtered)
-
-    #         _, _, service_point_candidate = filtered
-    #         detection_y = y + service_point_candidate.y
-    #         if not 450 <= detection_y <= 720:
-    #             continue
-
-    #         service_line_local, centre_service_line_local, service_point_local = filtered
-
-    #         if get_debug_mode():
-    #             print('intersections ---')
-    #             print(intersections)
-
-    #             print('line candidates ---')
-    #             print(line_candidates)
-
-
-    #             print('service_line_candidates ---')
-    #             print(service_line_candidates)
-
-    #             print('centre_service_line_candidates ---')
-    #             print(centre_service_line_candidates)
-
-    #             roi_copy = roi.copy()
-    #             for line in line_candidates:
-    #                 p1, p2 = line.limit_to_img(roi_copy)
-    #                 cv2.line(roi_copy, p1, p2, (255, 0, 0), 2)
-
-    #             display_img(roi_copy)
-
-    #         break
-
-    #     if (
-    #         service_line_local is None
-    #         and centre_service_line_local is None
-    #         and service_point_local is None
-    #     ):
-    #         return None
-
-    #     service_line_global = transform_line(
-    #         service_line_local,
-    #         roi,
-    #         self.center_crop_margin,
-    #         y
-    #     )
-
-    #     centre_service_line_global = transform_line(
-    #         centre_service_line_local,
-    #         roi,
-    #         self.center_crop_margin,
-    #         y
-    #     )
-
-    #     service_point_global = transform_point(
-    #         service_point_local,
-    #         self.center_crop_margin,
-    #         y,
-    #     )
-
-
-    #     return service_line_global, centre_service_line_global, service_point_global
