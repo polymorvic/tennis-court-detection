@@ -8,10 +8,21 @@ import matplotlib.pyplot as plt
 
 from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.utils.validators import check_if_numpy_image
+from tennis_court_detection.schemas.config import Surface
 
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line 
 from cvgeomkit.geometry.points import Point
+
+
+def get_surface_from_filename(filename: str) -> Surface:
+    filename = filename.lower()
+
+    if filename.startswith('03') or filename.startswith('09') or filename.startswith('10'):
+        return Surface.CLAY
+    
+    return Surface.OTHER
+
 
 
 def build_output_dir(parent_dir: str | Path, test_type: TestType) -> Path:
