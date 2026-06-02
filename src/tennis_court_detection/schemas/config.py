@@ -19,6 +19,11 @@ class Surface(StrEnum):
     HARD = "hard"
 
 
+class HorizontalTraverseDirection(StrEnum):
+    LEFT = "left"
+    RIGHT = "right"
+
+
 class MatchParams(BaseModel):
     service_side: ServiceSide
     match_type: MatchType
