@@ -1,27 +1,31 @@
 {
     "match_params": {
         "service_side": "left",
-        "match_type": "singles"
+        "match_type": "singles",
+        "surface": "clay"
     },
 
     "detection_params": {
 
         "basic": {
-            "roi_h_px": 80,
-            "step_px": 20,
-            "crop_center_ratio": 0.4
+            "roi_height_ratio": 0.075,
+            "step_height_ratio": 0.02,
+            "crop_center_width_ratio": 0.4
         },
 
         "baseline": {
-            "warmup": 5,
+            "warmup_height_ratio": 0.1,
             "canny_lower_thresh": 20,
             "canny_upper_thresh": 100,
+            "canny_lower_thresh_offset": 80,
+            "canny_upper_thresh_offset": 100,
             "hough_thresh": 50,
-            "min_line_len_ratio": 0.15,
-            "min_line_len_ensure_ratio": 0.03,
-            "min_line_gap_px": 5,
-            "h_line_slope_tolerance": 0.03,
-            "h_delta_ensure_px": 100
+            "hough_thresh_offset": -10,
+            "min_line_len_width_ratio": 0.1,
+            "min_line_len_ensure_width_ratio": 0.05,
+            "max_line_gap_width_ratio": 0.01,
+            "horizontal_line_slope_tolerance": 0.03,
+            "delta_ensure_height_ratio": 0.1
         }
     }
 
