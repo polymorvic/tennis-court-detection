@@ -33,7 +33,7 @@ class CourtDetector:
         self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_width_ratio)
         self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_width_ratio)[0]
 
-        if surface == Surface.CLAY:
+        if surface == Surface.CLAY or surface == Surface.GRASS:
             self.center_crop_img_gray = cv2.bilateralFilter(self.center_crop_img_gray, d=9, sigmaColor=30, sigmaSpace=30)
 
 
