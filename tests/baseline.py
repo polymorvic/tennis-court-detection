@@ -11,6 +11,7 @@ from tennis_court_detection.utils.helpers import load_process_params, load_pics_
 from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.court_detector import CourtDetector
 from tennis_court_detection.utils.annotations import transform_keypoint_annotation
+from tennis_court_detection.utils.testing import get_surface_from_filename
 
 from cvgeomkit.utils.helpers import read_image_as_numpyimage
 from cvgeomkit.geometry.points import Point
@@ -53,7 +54,8 @@ def run(
 
         img = read_image_as_numpyimage(file)
 
-        detector = CourtDetector(img, **basic_params.model_dump())
+        surface = get_surface_from_filename(file.name)
+        detector = CourtDetector(img, **basic_params.model_dump(), surface=surface)
         result = detector.scan_for_baseline(**baseline_params.model_dump())
 
         if result is None:
