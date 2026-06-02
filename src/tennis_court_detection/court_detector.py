@@ -140,7 +140,7 @@ class CourtDetector:
                 baseline = None
                 continue
 
-            is_baseline, sidelines = ensure_is_baseline(
+            baseline, is_baseline, sidelines = ensure_is_baseline(
                 baseline, 
                 self.img_gray,
                 roi.width,
