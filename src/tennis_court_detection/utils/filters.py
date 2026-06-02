@@ -1,3 +1,4 @@
+import cv2
 from cvgeomkit.common import ArrayLike, Numeric
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.intersections import Intersection
@@ -95,19 +96,19 @@ def filter_service_intersections(
 def ensure_is_baseline(
     baseline_candidate: Line,
     img_gray: ArrayLike,
+    roi_width: int,
     canny_lower_thresh: int,
     canny_upper_thresh: int,
     hough_thresh: int,
-    min_line_len_ensure_ratio: float = 0.03,
-    min_line_gap_px: int = 5,
-    h_delta_ratio: float = 0.08,
-    votes_thresh: int = 4
+    min_line_len_ensure_width_ratio: float,
+    max_line_gap_width_ratio: float,
+    delta_ensure_height_ratio: float,
+    candidates_count: int = 4
 ) -> tuple[bool, list[Line]]:
     img_gray = check_if_numpy_image(img_gray)
     h = int(baseline_candidate.intercept)
 
-    h_delta = int(img_gray.height * h_delta_ratio)
-
+    h_delta = int(img_gray.height * delta_ensure_height_ratio)
     y0 = max(0, h - h_delta)
     y1 = min(img_gray.height, h + 5)
 
@@ -116,13 +117,15 @@ def ensure_is_baseline(
     if roi_gray.height < 5:
         return False, []
 
+    min_line_len_px = int(min_line_len_ensure_width_ratio * roi_width)
+    max_line_gap_px = int(max_line_gap_width_ratio * roi_width)
     lines = lines_from_gray_img(
         roi_gray, 
         canny_lower_thresh,
         canny_upper_thresh,
         hough_thresh,
-        min_line_len_ensure_ratio,
-        min_line_gap_px
+        min_line_len_px,
+        max_line_gap_px
     )
 
     if not lines:
@@ -134,15 +137,15 @@ def ensure_is_baseline(
     
     lines_global = [transform_line(line, roi_gray, 0, y0) for line in lines]
     
-    votes = 0
+    count = 0
     lines = []
     for line in lines_global:
         x_axis_angle = line.theta
         intersection = baseline_candidate.intersection(line, img_gray)
         if (-90 < x_axis_angle -10 or 10 < x_axis_angle < 90) and intersection is not None:
             lines.append(line)
-            votes += 1
+            count += 1
 
-    return votes > votes_thresh, lines
+    return count > candidates_count, lines
 
 
