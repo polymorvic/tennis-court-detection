@@ -21,7 +21,10 @@ def get_surface_from_filename(filename: str) -> Surface:
     if filename.startswith('03') or filename.startswith('09') or filename.startswith('10'):
         return Surface.CLAY
     
-    return Surface.OTHER
+    elif filename.startswith('07') or filename.startswith('08'):
+        return Surface.GRASS 
+    
+    return Surface.HARD
 
 
 
