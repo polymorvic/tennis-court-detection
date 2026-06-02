@@ -12,7 +12,7 @@ from tennis_court_detection.utils.helpers import lines_from_gray_img
 
 def filter_horizontal_lines(
     lines: list[Line],
-    slope_thresh: float = 0.01,
+    slope_thresh: float = 0.02,
     horizontal: bool = True,
 ) -> list[Line] | None:
     validate_number(slope_thresh, float, 0, 0.2)
@@ -104,7 +104,7 @@ def ensure_is_baseline(
     max_line_gap_width_ratio: float,
     delta_ensure_height_ratio: float,
     candidates_count: int = 4
-) -> tuple[bool, list[Line]]:
+) -> tuple[Line, bool, list[Line]]:
     img_gray = check_if_numpy_image(img_gray)
     h = int(baseline_candidate.intercept)
 
@@ -115,7 +115,7 @@ def ensure_is_baseline(
     roi_gray = img_gray[y0:y1].copy()
     
     if roi_gray.height < 5:
-        return False, []
+        return baseline_candidate, False, []
 
     min_line_len_px = int(min_line_len_ensure_width_ratio * roi_width)
     max_line_gap_px = int(max_line_gap_width_ratio * roi_width)
@@ -129,23 +129,38 @@ def ensure_is_baseline(
     )
 
     if not lines:
-        return False, []
+        return baseline_candidate, False, []
     
-    lines = filter_horizontal_lines(lines, horizontal=False)
-    if not lines:
-        return False, []
+    horizontal_lines = filter_horizontal_lines(lines)
+    if horizontal_lines:
+        horizontal_lines_global = [transform_line(line, roi_gray, 0, y0) for line in horizontal_lines]
+        horizontal_lines_global = sorted(horizontal_lines_global, key = lambda line: line.intercept)
+
+        baseline_candidate = max(
+            (
+                line
+                for line in horizontal_lines_global
+                if line.intercept < baseline_candidate.intercept
+            ),
+            key=lambda line: line.intercept,
+            default=baseline_candidate,
+        )
     
-    lines_global = [transform_line(line, roi_gray, 0, y0) for line in lines]
+    sidelines = filter_horizontal_lines(lines, horizontal=False)
+    if not sidelines:
+        return baseline_candidate, False, []
+    
+    sidelines_global = [transform_line(line, roi_gray, 0, y0) for line in sidelines]
     
     count = 0
     lines = []
-    for line in lines_global:
+    for line in sidelines_global:
         x_axis_angle = line.theta
         intersection = baseline_candidate.intersection(line, img_gray)
         if (-90 < x_axis_angle -10 or 10 < x_axis_angle < 90) and intersection is not None:
             lines.append(line)
             count += 1
 
-    return count > candidates_count, lines
+    return baseline_candidate, count > candidates_count, lines
 
 
