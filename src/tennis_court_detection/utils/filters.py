@@ -103,14 +103,15 @@ def ensure_is_baseline(
     min_line_len_ensure_width_ratio: float,
     max_line_gap_width_ratio: float,
     delta_ensure_height_ratio: float,
-    candidates_count: int = 4
+    candidates_count: int = 4,
+    bottom_margin_height_ratio: float = 0.014
 ) -> tuple[Line, bool, list[Line]]:
     img_gray = check_if_numpy_image(img_gray)
     h = int(baseline_candidate.intercept)
 
     h_delta = int(img_gray.height * delta_ensure_height_ratio)
     y0 = max(0, h - h_delta)
-    y1 = min(img_gray.height, h + 5)
+    y1 = min(img_gray.height, h + int(img_gray.height * bottom_margin_height_ratio))
 
     roi_gray = img_gray[y0:y1].copy()
     
