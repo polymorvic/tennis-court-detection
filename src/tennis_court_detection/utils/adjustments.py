@@ -61,8 +61,10 @@ def traverse_horizontal_line(
     p_left: Point,
     p_right: Point,
     direction: Literal['left', 'right'],
-    step = 50,
-    h_delta = 20,
+    step: int = 50,
+    h_delta: int = 20,
+    lower_canny_thresh: int = 20,
+    upper_canny_thresh: int = 100,
 ):
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
 
@@ -82,8 +84,15 @@ def traverse_horizontal_line(
         crop = img[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
         crop_gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
 
-        edges = cv2.Canny(crop_gray, 100, 200)
-        segments = cv2.HoughLinesP(edges, 1, np.pi / 180, int(step * 0.8), int(step * 0.4), int(step * 0.1))
+        edges = cv2.Canny(crop_gray, lower_canny_thresh, upper_canny_thresh)
+        segments = cv2.HoughLinesP(
+            edges, 
+            rho = 1, 
+            theta = np.pi / 180,
+            threshold = int(step * 0.8), 
+            minLineLength=int(step * 0.4),
+            maxLineGap=int(step * 0.1)
+        )
 
         if get_debug_mode():
             display_img(crop_gray)
