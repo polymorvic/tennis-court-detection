@@ -2,7 +2,7 @@ from typing import Literal
 
 import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
-from cvgeomkit.geometry.points import Point
+from cvgeomkit.geometry.points import Point, transform_point
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.common import ArrayLike
 import numpy as np
@@ -10,7 +10,7 @@ from scipy.ndimage import median_filter
 
 from tennis_court_detection.config import get_debug_mode
 from tennis_court_detection.utils.filters import filter_horizontal_lines
-from tennis_court_detection.schemas.config import HorizontalTraverseDirection
+from tennis_court_detection.schemas.config import TraverseDirection
 
 
 def interpolate_lines_intercept(lines: list[Line | None]) -> list[Line]:
@@ -69,7 +69,7 @@ def traverse_horizontal_line(
     img: np.ndarray,
     p_left: Point,
     p_right: Point,
-    direction: HorizontalTraverseDirection,
+    direction: TraverseDirection,
     step_ratio: float = 0.026,
     h_delta_ratio: float = 0.0186,
     lower_canny_thresh: int = 20,
@@ -82,7 +82,7 @@ def traverse_horizontal_line(
     step = int(img.width * step_ratio)
     h_delta = int(img.height * h_delta_ratio)
 
-    if direction == HorizontalTraverseDirection.LEFT:
+    if direction == TraverseDirection.LEFT:
         x1 = p_c.x - step
         x2 = p_c.x
     else:
@@ -168,9 +168,78 @@ def adjust_horizontal_line(
     step_ratio: float = 0.026,
     height_delta_ratio: float = 0.0186
 ) -> list[tuple[Point, Point]]:
-    points = traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.LEFT, step_ratio, height_delta_ratio)
+    points = traverse_horizontal_line(img, left_point, right_point, TraverseDirection.LEFT, step_ratio, height_delta_ratio)
     points.extend(
-        traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.RIGHT, step_ratio, height_delta_ratio)
+        traverse_horizontal_line(img, left_point, right_point, TraverseDirection.RIGHT, step_ratio, height_delta_ratio)
     )
     return points
 
+
+def traverse_sideline(
+    start_point: Point,
+    original_img_rgb: ArrayLike,
+    lower_canny_thresh: int = 20,
+    upper_canny_thresh: int = 100,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.4,
+    max_line_gap_ratio: float = 0.1,
+    warmup: int = 5,
+    window_size_ratio: float = 30,
+):
+    img_gray = cv2.cvtColor(original_img_rgb, cv2.COLOR_RGB2GRAY)
+    window_size = int(original_img_rgb.height * window_size_ratio)
+    counter = 0
+    while True:
+
+        top_left = Point(start_point.x - window_size, start_point.y - window_size)
+        bottom_right = Point(start_point.x + window_size, start_point.y + window_size)
+
+        cv2.rectangle(original_img_rgb, top_left, bottom_right, (0, 255, 0), 2)
+
+        crop_side_gray = img_gray[top_left.y:bottom_right.y, top_left.x:bottom_right.x]
+        crop_side_rgb = original_img_rgb[top_left.y:bottom_right.y, top_left.x:bottom_right.x]
+
+        crop_side_edges = cv2.Canny(crop_side_gray, lower_canny_thresh, upper_canny_thresh)
+        segments = cv2.HoughLinesP(
+            crop_side_edges,
+            rho=1,
+            theta=np.pi/180,
+            threshold=int(window_size * hough_thresh_ratio),
+            minLineLength=int(window_size * min_line_len_ratio),
+            maxLineGap=int(window_size * max_line_gap_ratio)
+        )
+
+        if segments is None:
+            continue
+
+        if get_debug_mode():
+            crop_copy = crop_side_rgb.copy()
+            for segment in segments:
+                x1, y1, x2, y2 = segment[0]
+                cv2.line(crop_copy, (x1, y1), (x2, y2), (0, 255, 0))
+            display_img(crop_copy)
+
+        lines = [Line.from_hough_segment(*segment) for segment in segments]
+
+        if not lines:
+            continue
+
+        not_horizontal_lines = filter_horizontal_lines(lines, horizontal=False)
+
+        if not not_horizontal_lines:
+            continue
+
+        if counter > warmup and (len(not_horizontal_lines) != len(lines)):
+            break
+
+        upper_points = []
+        for line in not_horizontal_lines:
+            p1, _ = line.limit_to_img(crop_copy)
+            upper_points.append(p1)
+
+        next_point = sorted(upper_points, key = lambda point: point.x)[0]
+        next_point_global = transform_point(next_point, top_left.x, top_left.y)
+
+        start_point = next_point_global
+
+        counter += 1
