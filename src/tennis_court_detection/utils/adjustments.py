@@ -2,6 +2,7 @@ from typing import Literal
 
 import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
+from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.points import Point, transform_point
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.common import ArrayLike
@@ -35,6 +36,21 @@ def build_points(
         p2 = Point(x2, int(line.intercept))
         points.append((p1, p2))
     return points
+
+
+def build_segments(
+    lines: list[Line],
+    segment_xs: list[tuple[int, int]],
+) -> list[LineSegment]:
+
+    segments = []
+    for line, (x1, x2) in zip(lines, segment_xs):
+        y = int(line.intercept)
+        p1 = Point(x1, y)
+        p2 = Point(x2, y)
+        segments.append(LineSegment(p1, p2))
+
+    return segments
 
 
 def adjust_lines_intercept(
@@ -158,7 +174,7 @@ def traverse_horizontal_line(
         cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
         display_img(img_copy)
 
-    return build_points(interpolated_lines, segment_xs)
+    return build_segments(interpolated_lines, segment_xs)
 
 
 def adjust_horizontal_line(
@@ -167,12 +183,12 @@ def adjust_horizontal_line(
     right_point: Point,
     step_ratio: float = 0.026,
     height_delta_ratio: float = 0.0186
-) -> list[tuple[Point, Point]]:
-    points = traverse_horizontal_line(img, left_point, right_point, TraverseDirection.LEFT, step_ratio, height_delta_ratio)
-    points.extend(
+) -> list[LineSegment]:
+    segments = traverse_horizontal_line(img, left_point, right_point, TraverseDirection.LEFT, step_ratio, height_delta_ratio)
+    segments.extend(
         traverse_horizontal_line(img, left_point, right_point, TraverseDirection.RIGHT, step_ratio, height_delta_ratio)
     )
-    return points
+    return segments
 
 
 def traverse_sideline(
