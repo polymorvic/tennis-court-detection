@@ -54,29 +54,31 @@ def build_segments(
 
 
 def adjust_lines_intercept(
-    lines: list[Line], 
-    window: int = 7, 
-    max_dev: int | float = 3.0
+    lines: list[Line],
+    window: int = 7,
+    max_dev: float = 2.0,
+    iterations: int = 5,
 ) -> list[Line]:
-    intercepts = np.array([l.intercept for l in lines], dtype=float)
-    trend = median_filter(
-        intercepts,
-        size=window,
-        mode="reflect"
-    )
+    if window % 2 == 0:
+        window += 1
 
-    corrected = intercepts.copy()
-    mask = np.abs(intercepts - trend) > max_dev
+    y = np.array([l.intercept for l in lines], dtype=float)
+    edge = window // 2
 
-    x = np.arange(len(intercepts))
-    corrected[mask] = np.interp(
-        x[mask],
-        x[~mask],
-        intercepts[~mask]
-    )
+    for _ in range(iterations):
+        trend = median_filter(y, size=window, mode="reflect")
 
-    for line, value in zip(lines, corrected):
-        line.intercept = float(value)
+        mask = np.abs(y - trend) >= max_dev
+        mask[:edge] = False
+        mask[-edge:] = False
+
+        if not mask.any():
+            break
+
+        y[mask] = trend[mask]
+
+    for line, intercept in zip(lines, y):
+        line.intercept = float(round(intercept))
 
     return lines
 
@@ -93,7 +95,7 @@ def traverse_horizontal_line(
     hough_thresh_ratio: float = 0.8,
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1
-):
+) -> tuple[list[Line], list[tuple[int, int]]]:
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
     step = int(img.width * step_ratio)
     h_delta = int(img.height * h_delta_ratio)
@@ -165,7 +167,6 @@ def traverse_horizontal_line(
             cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
 
     interpolated_lines = interpolate_lines_intercept(lines)
-    interpolated_lines = adjust_lines_intercept(interpolated_lines)
 
     if get_debug_mode():
         print(f'before adjust: {interpolated_lines=}')
@@ -174,7 +175,7 @@ def traverse_horizontal_line(
         cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
         display_img(img_copy)
 
-    return build_segments(interpolated_lines, segment_xs)
+    return interpolated_lines, segment_xs
 
 
 def adjust_horizontal_line(
@@ -184,11 +185,20 @@ def adjust_horizontal_line(
     step_ratio: float = 0.026,
     height_delta_ratio: float = 0.0186
 ) -> list[LineSegment]:
-    segments = traverse_horizontal_line(img, left_point, right_point, TraverseDirection.LEFT, step_ratio, height_delta_ratio)
-    segments.extend(
-        traverse_horizontal_line(img, left_point, right_point, TraverseDirection.RIGHT, step_ratio, height_delta_ratio)
+    lines_left, xs_left = traverse_horizontal_line(
+        img, left_point, right_point, TraverseDirection.LEFT,
+        step_ratio, height_delta_ratio
     )
-    return segments
+    lines_right, xs_right = traverse_horizontal_line(
+        img, left_point, right_point, TraverseDirection.RIGHT,
+        step_ratio, height_delta_ratio
+    )
+
+    pairs = list(zip(lines_left + lines_right, xs_left + xs_right))
+    pairs.sort(key=lambda p: (p[1][0] + p[1][1]) / 2)
+    lines, segment_xs = map(list, zip(*pairs))
+    lines = adjust_lines_intercept(lines)
+    return build_segments(lines, segment_xs)
 
 
 def traverse_sideline(
