@@ -221,7 +221,7 @@ nvtx = [
 
 [[package]]
 name = "cvgeomkit"
-version = "0.1.3"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "matplotlib" },
@@ -231,9 +231,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "shapely" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/39/1971c7cda969832cd662fdb044e521800c576f45761afdc9077384e9a169/cvgeomkit-0.1.3.tar.gz", hash = "sha256:80cce443d3005424b8f4f9a621471dc5b79b34d805ab0ebe6e92134515fe8c43", size = 10936, upload-time = "2026-05-17T08:24:01.375Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/19/5a6effd794a384e33d5a664cb2e3d4d4de1f02b72d91aff277137e42ff38/cvgeomkit-0.1.4.tar.gz", hash = "sha256:39b0deddd7a8653370b0c6cd3c393584bdf7df32dd952a6b4517fe7dce5772b4", size = 12504, upload-time = "2026-06-04T15:02:40.887Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/e5/c8b208da27509ba17f3b4e17cdf5a6dc9abf314555b0d4d6136d5652f53c/cvgeomkit-0.1.3-py3-none-any.whl", hash = "sha256:ed10133f2be77491e5f570864d12e5302a543b6b4d42d1dbf78bae56b0529b9e", size = 15021, upload-time = "2026-05-17T08:24:00.387Z" },
+    { url = "https://files.pythonhosted.org/packages/76/82/a1f55a96f8d07ba6854025002c07ca62d6cfdb93bad07ae2281c417804b5/cvgeomkit-0.1.4-py3-none-any.whl", hash = "sha256:eab42bb4a993516756ff02e0539e59306b2e2fefda93eacbdc31469c0c03939d", size = 18047, upload-time = "2026-06-04T15:02:39.769Z" },
 ]
 
 [[package]]
@@ -1580,7 +1580,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cvgeomkit", specifier = "==0.1.3" },
+    { name = "cvgeomkit", specifier = ">=0.1.4" },
     { name = "imutils", specifier = ">=0.5.4" },
     { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=2.4.4" },
