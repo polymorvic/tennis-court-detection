@@ -6,6 +6,7 @@ from cvgeomkit.geometry.points import Point
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.common import ArrayLike
 import numpy as np
+from scipy.ndimage import median_filter
 
 from tennis_court_detection.config import get_debug_mode
 from tennis_court_detection.utils.filters import filter_horizontal_lines
@@ -37,21 +38,29 @@ def build_points(
 
 
 def adjust_lines_intercept(
-    lines: list[Line]
+    lines: list[Line], 
+    window: int = 7, 
+    max_dev: int | float = 3.0
 ) -> list[Line]:
-    for x in range(len(lines)):
+    intercepts = np.array([l.intercept for l in lines], dtype=float)
+    trend = median_filter(
+        intercepts,
+        size=window,
+        mode="reflect"
+    )
 
-        if x == 0 or x == len(lines) - 1:
-            continue
+    corrected = intercepts.copy()
+    mask = np.abs(intercepts - trend) > max_dev
 
-        prev_i = lines[x - 1].intercept
-        curr_i = lines[x].intercept
-        next_i = lines[x + 1].intercept
+    x = np.arange(len(intercepts))
+    corrected[mask] = np.interp(
+        x[mask],
+        x[~mask],
+        intercepts[~mask]
+    )
 
-        avg = (prev_i + next_i) / 2
-
-        if abs(curr_i - avg) > 2:
-            lines[x].intercept = int(avg)
+    for line, value in zip(lines, corrected):
+        line.intercept = float(value)
 
     return lines
 
