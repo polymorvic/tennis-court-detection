@@ -69,15 +69,20 @@ def traverse_horizontal_line(
     img: np.ndarray,
     p_left: Point,
     p_right: Point,
-    direction: Literal['left', 'right'],
-    step: int = 50,
-    h_delta: int = 20,
+    direction: HorizontalTraverseDirection,
+    step_ratio: float = 0.026,
+    h_delta_ratio: float = 0.0186,
     lower_canny_thresh: int = 20,
     upper_canny_thresh: int = 100,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.4,
+    max_line_gap_ratio: float = 0.1
 ):
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
+    step = int(img.width * step_ratio)
+    h_delta = int(img.height * h_delta_ratio)
 
-    if direction =='left':
+    if direction == HorizontalTraverseDirection.LEFT:
         x1 = p_c.x - step
         x2 = p_c.x
     else:
@@ -85,22 +90,23 @@ def traverse_horizontal_line(
         x2 = p_c.x + step
         
     img_copy = img.copy()
-
+    img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    
     lines = []
     segment_xs = []
     while {'left': x2 > p_left.x, 'right': x1 < p_right.x}[direction]:
 
         crop = img[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
-        crop_gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+        crop_gray = img_gray[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
 
         edges = cv2.Canny(crop_gray, lower_canny_thresh, upper_canny_thresh)
         segments = cv2.HoughLinesP(
             edges, 
             rho = 1, 
             theta = np.pi / 180,
-            threshold = int(step * 0.8), 
-            minLineLength=int(step * 0.4),
-            maxLineGap=int(step * 0.1)
+            threshold = int(step * hough_thresh_ratio), 
+            minLineLength=int(step * min_line_len_ratio),
+            maxLineGap=int(step * max_line_gap_ratio)
         )
 
         if get_debug_mode():
@@ -121,7 +127,6 @@ def traverse_horizontal_line(
         
         sub_lines = filter_horizontal_lines(sub_lines)
         if sub_lines:
-            # print(sorted(sub_lines, key = lambda line: line.intercept))
             bottom_line = sorted(sub_lines, key = lambda line: line.intercept)[-1]
             bottom_line_global = transform_line(bottom_line, crop, x1, p_c.y - h_delta)
             lines.append(bottom_line_global)
@@ -160,11 +165,12 @@ def adjust_horizontal_line(
     img: ArrayLike,
     left_point: Point,
     right_point: Point,
-    step = 50,
-    height_delta = 20
+    step_ratio: float = 0.026,
+    height_delta_ratio: float = 0.0186
 ) -> list[tuple[Point, Point]]:
-    points = traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.LEFT, step, height_delta)
+    points = traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.LEFT, step_ratio, height_delta_ratio)
     points.extend(
-        traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.RIGHT, step, height_delta)
+        traverse_horizontal_line(img, left_point, right_point, HorizontalTraverseDirection.RIGHT, step_ratio, height_delta_ratio)
     )
     return points
+
