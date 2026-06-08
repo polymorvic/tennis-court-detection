@@ -202,5 +202,22 @@ def get_next_intersection_by_margin(
             return inter
 
 
+def get_boundary_horizontal_intercection(
+    intersections: list[Intersection], 
+    direction: TraverseDirection
+) -> Intersection:
+    sorted_intersections = sorted(intersections, key = lambda inter: inter.point.x)
+    idx = 0 if direction == TraverseDirection.LEFT else -1
+    return sorted_intersections[idx]
+    
 
-
+def compute_intersections_for_line(
+    ref_line: Line,
+    other_lines: list[Line],
+    img: ArrayLike
+) -> list[Intersection]:
+    intersections = []
+    for line in other_lines:
+        inter = ref_line.intersection(line, img)
+        intersections.append(inter)
+    return intersections
