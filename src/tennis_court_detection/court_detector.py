@@ -52,7 +52,7 @@ class CourtDetector:
         max_line_gap_width_ratio: float,
         horizontal_line_slope_tolerance: float,
         delta_ensure_height_ratio: float
-    ) -> tuple[Line | None, list[Line]]:
+    ) -> tuple[Line, list[Line]] | None:
         warmup = int(self.img.height / self.step_px * warmup_height_ratio)
         ch = self.center_crop_h
         crop = self.center_crop_img.copy()
