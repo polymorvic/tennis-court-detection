@@ -5,6 +5,7 @@ from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line, Line
 from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections, Intersection
+from cvgeomkit.geometry.segments import LineSegment
 
 from tennis_court_detection.schemas.config import ServiceSide, Surface, TraverseDirection
 from tennis_court_detection.utils.helpers import (
@@ -174,7 +175,7 @@ class CourtDetector:
     def find_sidelines_segments(
         self,
         baseline_intersections: list[Intersection]
-    ):
+    ) -> tuple[LineSegment, LineSegment, LineSegment, LineSegment]:
         temp_img = self.img.copy()
         if self.surface == Surface.CLAY or self.surface == Surface.GRASS:
             temp_img = cv2.bilateralFilter(temp_img, d=9, sigmaColor=30, sigmaSpace=30)
@@ -230,16 +231,15 @@ class CourtDetector:
             temp_img
         )
 
-        left_p, right_p = get_opposite_baseline_bounds(
-            left_outer_segments, 
-            right_outer_segments
-        )
+        # left_p, right_p = get_opposite_baseline_bounds(
+        #     left_outer_segments, 
+        #     right_outer_segments
+        # )
 
-        opposite_baseline_segments = adjust_horizontal_line(
-            temp_img, left_p, right_p
-        )
+        # opposite_baseline_segments = adjust_horizontal_line(
+        #     temp_img, left_p, right_p
+        # )
 
-        return (baseline_segments, opposite_baseline_segments,
-                left_outer_segments, left_inner_segments,
-                right_inner_segments, right_outer_segments
-            )
+        return (baseline_segments, left_outer_segments, 
+                left_inner_segments, right_inner_segments, 
+                right_outer_segments)
