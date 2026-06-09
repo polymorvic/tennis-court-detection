@@ -2,16 +2,17 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
-from cvgeomkit.geometry.lines import transform_line
+from cvgeomkit.geometry.lines import transform_line, Line
 from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections
 
 from tennis_court_detection.schemas.config import ServiceSide, Surface
 from tennis_court_detection.utils.helpers import crop_center_img, lines_from_gray_img
                               
-from tennis_court_detection.utils.filters import (filter_horizontal_lines, get_vertical_lines, get_centre_vertical_lines, 
-                               filter_service_intersections, ensure_is_baseline)
-from tennis_court_detection.utils.images import process_img_for_service_line_detection
+from tennis_court_detection.utils.filters import (
+    filter_horizontal_lines, 
+    ensure_is_baseline
+)
 
 from tennis_court_detection.config import get_debug_mode
 
@@ -51,8 +52,7 @@ class CourtDetector:
         max_line_gap_width_ratio: float,
         horizontal_line_slope_tolerance: float,
         delta_ensure_height_ratio: float
-
-    ):
+    ) -> tuple[Line, list[Line]] | None:
         warmup = int(self.img.height / self.step_px * warmup_height_ratio)
         ch = self.center_crop_h
         crop = self.center_crop_img.copy()

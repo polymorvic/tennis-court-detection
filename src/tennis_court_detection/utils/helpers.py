@@ -3,9 +3,10 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
+from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
-from tennis_court_detection.schemas.config import Params, PicsBlacklist
+from tennis_court_detection.schemas.config import Params, PicsBlacklist, TraverseDirection
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
 from tennis_court_detection.config import get_debug_mode
 
@@ -177,3 +178,46 @@ def pipette_color(image: np.ndarray, k: int = 4) -> tuple[int, int, int]:
     c = X[labels == dom]
 
     return tuple(map(int, np.median(c, axis=0)))
+
+
+def get_next_intersection_by_margin(
+    img: ArrayLike,
+    intersections: list[Intersection],
+    start_intersection: Intersection,
+    direction: TraverseDirection,
+    margin_ratio: float = 0.02
+) -> Intersection | None:
+    img = check_if_numpy_image(img)
+    margin = margin_ratio * img.width
+    sorted_intersections = sorted(intersections, key = lambda inter: inter.point.x)
+    start_idx = sorted_intersections.index(start_intersection)
+    
+    if direction == TraverseDirection.RIGHT:
+        iter_intersections = sorted_intersections[start_idx:]
+    else:
+        iter_intersections = sorted_intersections[:start_idx][::-1]
+
+    for inter in iter_intersections:
+        if start_intersection.point.distance(inter.point) > margin:
+            return inter
+
+
+def get_boundary_horizontal_intercection(
+    intersections: list[Intersection], 
+    direction: TraverseDirection
+) -> Intersection:
+    sorted_intersections = sorted(intersections, key = lambda inter: inter.point.x)
+    idx = 0 if direction == TraverseDirection.LEFT else -1
+    return sorted_intersections[idx]
+    
+
+def compute_intersections_for_line(
+    ref_line: Line,
+    other_lines: list[Line],
+    img: ArrayLike
+) -> list[Intersection]:
+    intersections = []
+    for line in other_lines:
+        inter = ref_line.intersection(line, img)
+        intersections.append(inter)
+    return intersections
