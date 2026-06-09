@@ -12,6 +12,7 @@ from scipy.ndimage import median_filter
 
 from tennis_court_detection.config import get_debug_mode
 from tennis_court_detection.utils.filters import filter_horizontal_lines
+from tennis_court_detection.utils.helpers import make_odd_kernel_size
 from tennis_court_detection.utils.validators import check_if_numpy_image
 from tennis_court_detection.schemas.config import TraverseDirection
 
@@ -242,7 +243,7 @@ def traverse_sideline(
     original_img_copy = original_img.copy()
     img_gray = cv2.cvtColor(original_img, cv2.COLOR_RGB2GRAY)
     window_size = int(original_img.height * window_size_ratio)
-    kernel_size = int(window_size * kernel_size_ratio)
+    kernel_size = make_odd_kernel_size(window_size, kernel_size_ratio)
     move_up_first_window = int(move_up_first_window_ratio * 2 * window_size)
     counter = 0
     line_segments = []

@@ -13,6 +13,15 @@ from tennis_court_detection.utils.validators import check_if_numpy_image, valida
 from tennis_court_detection.config import get_debug_mode
 
 
+def make_odd_kernel_size(
+    window_size: int, 
+    kernel_size_ratio: float, 
+    min_size: int = 3
+) -> int:
+    min_size |= 1
+    return max(min_size, int(window_size * kernel_size_ratio) | 1)
+
+
 def crop_center_img(
     img: ArrayLike, 
     crop_ratio: float = 0.4
