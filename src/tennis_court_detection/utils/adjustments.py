@@ -12,6 +12,7 @@ from scipy.ndimage import median_filter
 
 from tennis_court_detection.config import get_debug_mode
 from tennis_court_detection.utils.filters import filter_horizontal_lines
+from tennis_court_detection.utils.validators import check_if_numpy_image
 from tennis_court_detection.schemas.config import TraverseDirection
 
 
@@ -97,6 +98,7 @@ def traverse_horizontal_line(
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1
 ) -> tuple[list[Line], list[tuple[int, int]]]:
+    img = check_if_numpy_image(img)
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
     step = int(img.width * step_ratio)
     h_delta = int(img.height * h_delta_ratio)
@@ -213,9 +215,10 @@ def traverse_sideline(
     window_size_ratio: float = 0.016,
     kernel_size_ratio: float = 0.3,
     move_up_first_window_ratio: float = 0.3,
-    adapt_patience: int = 10
+    adapt_patience: int = 10,
+    original_line_slope_similarity_max_thresh: float = 0.5
 ) -> list[LineSegment]:
-    
+    original_img = check_if_numpy_image(original_img)
     current_patience = 0
     
     def adapt_params(
@@ -289,12 +292,12 @@ def traverse_sideline(
             lower_canny_thresh, hough_thresh_ratio = adapt_params(lower_canny_thresh, hough_thresh_ratio)
             continue
 
-        if get_debug_mode():
-            crop_copy = crop_side_rgb.copy()
-            for segment in segments:
-                x1, y1, x2, y2 = segment[0]
-                cv2.line(crop_copy, (x1, y1), (x2, y2), (0, 255, 0))
-            display_img(crop_copy)
+        # if get_debug_mode():
+        #     crop_copy = crop_side_rgb.copy()
+        #     for segment in segments:
+        #         x1, y1, x2, y2 = segment[0]
+        #         cv2.line(crop_copy, (x1, y1), (x2, y2), (0, 255, 0))
+        #     display_img(crop_copy)
 
         lines = [Line.from_hough_segment(*segment) for segment in segments]
 
@@ -303,19 +306,32 @@ def traverse_sideline(
             lower_canny_thresh, hough_thresh_ratio = adapt_params(lower_canny_thresh, hough_thresh_ratio)
             continue
 
+        line_candidates = [line for line in not_horizontal_lines if line.slope is not None and abs(line.slope - original_line.slope) < original_line_slope_similarity_max_thresh]
+        if not line_candidates:
+            pass
+
+        if get_debug_mode():
+            crop_copy = crop_side_rgb.copy()
+            for line in line_candidates:
+                p1, p2 = line.limit_to_img(crop_side_gray)
+                cv2.line(crop_copy, p1, p2, (0, 255, 0))
+            display_img(crop_copy)
+
         upper_points = []
         iter_segments = []
-        for line in not_horizontal_lines:
-            if line.slope is None or abs(line.slope - original_line.slope) > 0.5:
+        for line in line_candidates:
+            if line.slope is None or abs(line.slope - original_line.slope) > original_line_slope_similarity_max_thresh:
                 continue
             p1, p2 = line.limit_to_img(crop_side_gray)
-            upper_points.append(p1)
+
+            upper_point = p1 if p1.y < p2.y else p2
+            upper_points.append(upper_point)
 
             ls = LineSegment.from_points(p1, p2)
             iter_segments.append(ls)
         
         iter_segments = sorted(iter_segments, key = lambda segment: (segment.start.x, segment.end.x))
-        if sum(np.sign(line.slope) for line in not_horizontal_lines) > 0:
+        if sum(np.sign(line.slope) for line in line_candidates) > 0:
             idx = -1
         else:
             idx = 0
