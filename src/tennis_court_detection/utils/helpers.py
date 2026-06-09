@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
+from cvgeomkit.geometry.points import Point
+from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
@@ -221,3 +223,18 @@ def compute_intersections_for_line(
         inter = ref_line.intersection(line, img)
         intersections.append(inter)
     return intersections
+
+
+def get_opposite_baseline_bounds(
+    left_outer_segments: list[LineSegment],
+    right_outer_segments: list[LineSegment]
+) -> tuple[Point, Point]:
+    left_bound = min(left_outer_segments[-1].to_tuple(), key=lambda p: p.x)
+    right_bound = max(right_outer_segments[-1].to_tuple(), key=lambda p: p.x)
+
+    baseline_y = min(left_bound.y, right_bound.y)
+    
+    left_bound = Point(x=left_bound.x, y=baseline_y)
+    right_bound = Point(x=right_bound.x, y=baseline_y)
+
+    return left_bound, right_bound
