@@ -257,7 +257,11 @@ def traverse_sideline(
 
         cv2.rectangle(original_img_copy, top_left, bottom_right, (0, 255, 0), 2)
 
-        crop_side_gray = cv2.medianBlur(img_gray[top_left.y:bottom_right.y, top_left.x:bottom_right.x], kernel_size)
+        crop_side_gray = img_gray[top_left.y:bottom_right.y, top_left.x:bottom_right.x]
+        if crop_side_gray.size == 0:
+            break
+
+        crop_side_gray = cv2.medianBlur(crop_side_gray, kernel_size)
         original_line_local = transform_line(original_line, original_img, top_left.x, top_left.y, to_global=False)
 
         try:
