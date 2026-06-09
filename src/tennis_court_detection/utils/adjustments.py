@@ -2,6 +2,7 @@ from typing import Literal
 
 import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
+from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.points import Point, transform_point
 from cvgeomkit.utils.plotting import display_img
@@ -202,17 +203,20 @@ def adjust_horizontal_line(
 
 
 def traverse_sideline(
-    start_point: Point,
+    start_intersection: Intersection,
     original_img: ArrayLike,
     lower_canny_thresh: int = 20,
     upper_canny_thresh: int = 100,
     hough_thresh_ratio: float = 0.8,
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
-    warmup: int = 5,
     window_size_ratio: float = 0.016,
-    kernel_size_ratio: float = 0.3
+    kernel_size_ratio: float = 0.3,
+    move_up_first_window_ratio: float = 0.3,
+    adapt_patience: int = 10
 ) -> list[LineSegment]:
+    
+    current_patience = 0
     
     def adapt_params(
         initial_lower_canny_thresh: int,
@@ -220,30 +224,50 @@ def traverse_sideline(
         canny_adapt_ratio: float = 0.05,
         hough_adapt_ratio: float = 0.95
     ) -> tuple[int, float]:
+        nonlocal current_patience
+        current_patience += 1
         return initial_lower_canny_thresh - int(initial_lower_canny_thresh * canny_adapt_ratio), initial_hough_thresh_ratio * hough_adapt_ratio
     
     orig_lower_canny_thresh = lower_canny_thresh
     orig_hough_thresh_ratio = hough_thresh_ratio
 
     def reset_params():
+        nonlocal current_patience
+        current_patience = 0
         return orig_lower_canny_thresh, orig_hough_thresh_ratio
     
     original_img_copy = original_img.copy()
     img_gray = cv2.cvtColor(original_img, cv2.COLOR_RGB2GRAY)
-    bin_img = cv2.inRange(img_gray, 0, 20)
     window_size = int(original_img.height * window_size_ratio)
     kernel_size = int(window_size * kernel_size_ratio)
+    move_up_first_window = int(move_up_first_window_ratio * 2 * window_size)
     counter = 0
     line_segments = []
+    start_point = start_intersection.point
+    original_line = filter_horizontal_lines([start_intersection.line1, start_intersection.line2], horizontal=False)[0]
     while True:
-        top_left = Point(start_point.x - window_size, start_point.y - window_size)
-        bottom_right = Point(start_point.x + window_size, start_point.y + window_size)
+
+        if counter == 0:
+            top_left = Point(start_point.x - window_size, start_point.y - window_size - move_up_first_window)
+            bottom_right = Point(start_point.x + window_size, start_point.y + window_size - move_up_first_window)
+
+        else:
+            top_left = Point(start_point.x - window_size, start_point.y - window_size)
+            bottom_right = Point(start_point.x + window_size, start_point.y + window_size)
 
         cv2.rectangle(original_img_copy, top_left, bottom_right, (0, 255, 0), 2)
 
         crop_side_gray = cv2.medianBlur(img_gray[top_left.y:bottom_right.y, top_left.x:bottom_right.x], kernel_size)
+
+        original_line_local = transform_line(original_line, original_img, top_left.x, top_left.y, to_global=False)
+
+        try:
+            original_line_local.limit_to_img(crop_side_gray)
+        except ValueError as e:
+            start_point = transform_point(Point(x = window_size, y = 0), top_left.x, top_left.y)
+            continue
+
         crop_side_rgb = original_img[top_left.y:bottom_right.y, top_left.x:bottom_right.x]
-        crop_bin_img = bin_img[top_left.y:bottom_right.y, top_left.x:bottom_right.x]
 
         crop_side_edges = cv2.Canny(crop_side_gray, lower_canny_thresh, upper_canny_thresh)
         segments = cv2.HoughLinesP(
@@ -255,8 +279,8 @@ def traverse_sideline(
             maxLineGap=int(window_size * max_line_gap_ratio)
         )
 
-        display_img(crop_side_gray)
-        display_img(crop_bin_img)
+        if current_patience == adapt_patience:
+            break
 
         if segments is None:
             lower_canny_thresh, hough_thresh_ratio = adapt_params(lower_canny_thresh, hough_thresh_ratio)
@@ -276,12 +300,12 @@ def traverse_sideline(
             lower_canny_thresh, hough_thresh_ratio = adapt_params(lower_canny_thresh, hough_thresh_ratio)
             continue
 
-        # if counter > warmup: # and (len(not_horizontal_lines) != len(lines)):
-        #     break
 
         upper_points = []
         iter_segments = []
         for line in not_horizontal_lines:
+            if line.slope is None or abs(line.slope - original_line.slope) > 0.5:
+                continue
             p1, p2 = line.limit_to_img(crop_copy)
             upper_points.append(p1)
 
@@ -291,17 +315,23 @@ def traverse_sideline(
         iter_segments = sorted(iter_segments, key = lambda segment: (segment.start.x, segment.end.x))
         if sum(np.sign(line.slope) for line in not_horizontal_lines) > 0:
             idx = -1
-            
         else:
             idx = 0
 
-        next_point = sorted(upper_points, key = lambda point: point.x)[idx]
-        next_point_global = transform_point(next_point, top_left.x, top_left.y)
-        line_segments.append(iter_segments[idx])
+        if upper_points:
+            next_point = sorted(upper_points, key = lambda point: point.x)[idx]
+            next_point_global = transform_point(next_point, top_left.x, top_left.y)
+            line_segments.append(iter_segments[idx])
 
-        start_point = next_point_global
+            start_point = next_point_global
+
+        else:
+            start_point = transform_point(Point(x = window_size, y = 0), top_left.x, top_left.y)
+
         reset_params()
-
         counter += 1
+
+    if get_debug_mode():
+        display_img(original_img_copy)
 
     return line_segments
