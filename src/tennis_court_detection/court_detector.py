@@ -4,16 +4,25 @@ from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line, Line
 from cvgeomkit.geometry.points import transform_point
-from cvgeomkit.geometry.intersections import compute_intersections
+from cvgeomkit.geometry.intersections import compute_intersections, Intersection
+from cvgeomkit.geometry.segments import LineSegment
 
-from tennis_court_detection.schemas.config import ServiceSide, Surface
-from tennis_court_detection.utils.helpers import crop_center_img, lines_from_gray_img
-                              
+from tennis_court_detection.schemas.config import ServiceSide, Surface, TraverseDirection
+from tennis_court_detection.utils.helpers import (
+    crop_center_img, 
+    lines_from_gray_img,
+    get_next_intersection_by_margin, 
+    get_boundary_horizontal_intercection,
+    get_opposite_baseline_bounds
+)                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
     ensure_is_baseline
 )
-
+from tennis_court_detection.utils.adjustments import (
+    adjust_horizontal_line,
+    traverse_sideline
+)
 from tennis_court_detection.config import get_debug_mode
 
 
@@ -33,6 +42,7 @@ class CourtDetector:
         self.step_px = int(step_height_ratio * self.img.height)
         self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_width_ratio)
         self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_width_ratio)[0]
+        self.surface = surface
 
         if surface == Surface.CLAY or surface == Surface.GRASS:
             self.center_crop_img_gray = cv2.bilateralFilter(self.center_crop_img_gray, d=9, sigmaColor=30, sigmaSpace=30)
@@ -161,3 +171,75 @@ class CourtDetector:
 
         return baseline, sidelines
 
+
+    def find_sidelines_segments(
+        self,
+        baseline_intersections: list[Intersection]
+    ) -> tuple[LineSegment, LineSegment, LineSegment, LineSegment]:
+        temp_img = self.img.copy()
+        if self.surface == Surface.CLAY or self.surface == Surface.GRASS:
+            temp_img = cv2.bilateralFilter(temp_img, d=9, sigmaColor=30, sigmaSpace=30)
+
+
+        left_outer_intersection = get_boundary_horizontal_intercection(
+            baseline_intersections, 
+            TraverseDirection.LEFT
+        )
+        right_outer_intersection = get_boundary_horizontal_intercection(
+            baseline_intersections, 
+            TraverseDirection.RIGHT
+        )
+        left_inner_intersection = get_next_intersection_by_margin(
+            self.img, 
+            baseline_intersections, 
+            left_outer_intersection, 
+            TraverseDirection.RIGHT
+        )
+        right_inner_intersection = get_next_intersection_by_margin(
+            self.img, 
+            baseline_intersections, 
+            right_outer_intersection, 
+            TraverseDirection.LEFT
+        )
+
+        baseline_segments = adjust_horizontal_line(
+            temp_img, 
+            left_outer_intersection.point, 
+            right_outer_intersection.point
+        )
+
+        if get_debug_mode():
+            img_copy = self.img.copy()
+            for p1, p2 in baseline_segments:
+                cv2.line(img_copy, p1, p2, (255, 0, 0), 2)
+            display_img(img_copy)
+
+        left_outer_segments = traverse_sideline(
+            left_outer_intersection,
+            temp_img
+        )
+        left_inner_segments = traverse_sideline(
+            left_inner_intersection,
+            temp_img
+        )
+        right_inner_segments = traverse_sideline(
+            right_inner_intersection,
+            temp_img
+        )
+        right_outer_segments = traverse_sideline(
+            right_outer_intersection,
+            temp_img
+        )
+
+        # left_p, right_p = get_opposite_baseline_bounds(
+        #     left_outer_segments, 
+        #     right_outer_segments
+        # )
+
+        # opposite_baseline_segments = adjust_horizontal_line(
+        #     temp_img, left_p, right_p
+        # )
+
+        return (baseline_segments, left_outer_segments, 
+                left_inner_segments, right_inner_segments, 
+                right_outer_segments)

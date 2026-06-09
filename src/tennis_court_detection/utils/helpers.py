@@ -3,12 +3,23 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
+from cvgeomkit.geometry.points import Point
+from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
 from tennis_court_detection.schemas.config import Params, PicsBlacklist, TraverseDirection
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
 from tennis_court_detection.config import get_debug_mode
+
+
+def make_odd_kernel_size(
+    window_size: int, 
+    kernel_size_ratio: float, 
+    min_size: int = 3
+) -> int:
+    min_size |= 1
+    return max(min_size, int(window_size * kernel_size_ratio) | 1)
 
 
 def crop_center_img(
@@ -221,3 +232,18 @@ def compute_intersections_for_line(
         inter = ref_line.intersection(line, img)
         intersections.append(inter)
     return intersections
+
+
+def get_opposite_baseline_bounds(
+    left_outer_segments: list[LineSegment],
+    right_outer_segments: list[LineSegment]
+) -> tuple[Point, Point]:
+    left_bound = min(left_outer_segments[-1].to_tuple(), key=lambda p: p.x)
+    right_bound = max(right_outer_segments[-1].to_tuple(), key=lambda p: p.x)
+
+    baseline_y = min(left_bound.y, right_bound.y)
+    
+    left_bound = Point(x=left_bound.x, y=baseline_y)
+    right_bound = Point(x=right_bound.x, y=baseline_y)
+
+    return left_bound, right_bound
