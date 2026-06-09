@@ -6,3 +6,4 @@ class TestType(StrEnum):
     BASELINE = 'baseline'
     CENTRE_SERVICE_LINE = 'centre_service_line'
     CENTRE_SERVICE_POINT = 'centre_service_point'
+    KEY_POINTS = 'key_points'
