@@ -3,7 +3,7 @@ from typing import Literal
 import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.geometry.intersections import Intersection
-from cvgeomkit.geometry.segments import LineSegment
+from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from cvgeomkit.geometry.points import Point, transform_point
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.common import ArrayLike
@@ -258,7 +258,6 @@ def traverse_sideline(
         cv2.rectangle(original_img_copy, top_left, bottom_right, (0, 255, 0), 2)
 
         crop_side_gray = cv2.medianBlur(img_gray[top_left.y:bottom_right.y, top_left.x:bottom_right.x], kernel_size)
-
         original_line_local = transform_line(original_line, original_img, top_left.x, top_left.y, to_global=False)
 
         try:
@@ -300,13 +299,12 @@ def traverse_sideline(
             lower_canny_thresh, hough_thresh_ratio = adapt_params(lower_canny_thresh, hough_thresh_ratio)
             continue
 
-
         upper_points = []
         iter_segments = []
         for line in not_horizontal_lines:
             if line.slope is None or abs(line.slope - original_line.slope) > 0.5:
                 continue
-            p1, p2 = line.limit_to_img(crop_copy)
+            p1, p2 = line.limit_to_img(crop_side_gray)
             upper_points.append(p1)
 
             ls = LineSegment.from_points(p1, p2)
@@ -321,12 +319,21 @@ def traverse_sideline(
         if upper_points:
             next_point = sorted(upper_points, key = lambda point: point.x)[idx]
             next_point_global = transform_point(next_point, top_left.x, top_left.y)
-            line_segments.append(iter_segments[idx])
-
+            line_segments.append(
+                transform_line_segment(
+                    iter_segments[idx], top_left.x, top_left.y
+                ))
+            
             start_point = next_point_global
 
         else:
             start_point = transform_point(Point(x = window_size, y = 0), top_left.x, top_left.y)
+
+            local_line = transform_line(original_line, original_img, top_left.x, top_left.y, to_global=False)
+            p1, p2 = local_line.limit_to_img(crop_side_gray)
+            last_segment_local = LineSegment.from_points(p1, p2)
+            line_segments.append(transform_line_segment(last_segment_local, top_left.x, top_left.y))
+            
 
         reset_params()
         counter += 1
