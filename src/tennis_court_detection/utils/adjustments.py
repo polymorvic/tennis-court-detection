@@ -308,8 +308,6 @@ def traverse_sideline(
             continue
 
         line_candidates = [line for line in not_horizontal_lines if line.slope is not None and abs(line.slope - original_line.slope) < original_line_slope_similarity_max_thresh]
-        if not line_candidates:
-            pass
 
         if get_debug_mode():
             crop_copy = crop_side_rgb.copy()
@@ -318,7 +316,7 @@ def traverse_sideline(
                 cv2.line(crop_copy, p1, p2, (0, 255, 0))
             display_img(crop_copy)
 
-        upper_points = []
+        points = []
         iter_segments = []
         for line in line_candidates:
             if line.slope is None or abs(line.slope - original_line.slope) > original_line_slope_similarity_max_thresh:
@@ -326,9 +324,11 @@ def traverse_sideline(
             p1, p2 = line.limit_to_img(crop_side_gray)
 
             upper_point = p1 if p1.y < p2.y else p2
-            upper_points.append(upper_point)
+            lower_point = p1 if p1.y >= p2.y else p2
 
-            ls = LineSegment.from_points(p1, p2)
+            points.append((lower_point, upper_point))
+
+            ls = LineSegment.from_points(lower_point, upper_point)
             iter_segments.append(ls)
         
         iter_segments = sorted(iter_segments, key = lambda segment: (segment.start.x, segment.end.x))
@@ -337,9 +337,10 @@ def traverse_sideline(
         else:
             idx = 0
 
-        if upper_points:
-            next_point = sorted(upper_points, key = lambda point: point.x)[idx]
-            next_point_global = transform_point(next_point, top_left.x, top_left.y)
+        if points:
+            next_point = sorted(points, key = lambda point_pair: (point_pair[0].x, point_pair[1].x))[idx]
+            next_point_global = transform_point(next_point[1], top_left.x, top_left.y)
+
             line_segments.append(
                 transform_line_segment(
                     iter_segments[idx], top_left.x, top_left.y
