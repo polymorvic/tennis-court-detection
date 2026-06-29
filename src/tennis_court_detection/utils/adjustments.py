@@ -345,16 +345,21 @@ def traverse_sideline(
                 transform_line_segment(
                     iter_segments[idx], top_left.x, top_left.y
                 ))
-            
             start_point = next_point_global
 
         else:
             start_point = transform_point(Point(x = window_size, y = 0), top_left.x, top_left.y)
-
             local_line = transform_line(original_line, original_img, top_left.x, top_left.y, to_global=False)
             p1, p2 = local_line.limit_to_img(crop_side_gray)
+
             last_segment_local = LineSegment.from_points(p1, p2)
             line_segments.append(transform_line_segment(last_segment_local, top_left.x, top_left.y))
+
+            upper_point = p1 if p1.y < p2.y else p2
+            lower_point = p1 if p1.y >= p2.y else p2
+
+            next_point_global = transform_point(upper_point, top_left.x, top_left.y)
+            start_point = next_point_global
             
 
         reset_params()
