@@ -225,10 +225,17 @@ def get_boundary_horizontal_intercection(
 def compute_intersections_for_line(
     ref_line: Line,
     other_lines: list[Line],
-    img: ArrayLike
+    img: ArrayLike,
+    exclude_similar_slope: bool = False
 ) -> list[Intersection]:
     intersections = []
     for line in other_lines:
+
+        if exclude_similar_slope:
+            angle = angle_between_lines(ref_line, line)
+            if angle < 10 or 190 > angle > 170 or angle > 350:
+                continue
+
         inter = ref_line.intersection(line, img)
         intersections.append(inter)
     return intersections
