@@ -254,3 +254,18 @@ def get_opposite_baseline_bounds(
     right_bound = Point(x=right_bound.x, y=baseline_y)
 
     return left_bound, right_bound
+
+
+def get_point_from_segments_by_point_y(
+    line_segments: list[LineSegment], 
+    point: Point, 
+    side: str
+) -> Point:
+    ls_points = []
+    for ls in line_segments:
+        if (ls.end.y <= point.y <= ls.start.y) or (ls.start.y <= point.y <= ls.end.y):
+            ls_points.append((ls.start, ls.end))
+
+    xs = sum([(p1.x, p2.x) for p1, p2 in ls_points], ())
+
+    return Point(max(xs) if side == 'left' else min(xs), point.y)
