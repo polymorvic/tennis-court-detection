@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 
 import cv2
@@ -13,8 +14,9 @@ from scipy.ndimage import median_filter
 from tennis_court_detection.config import get_debug_mode
 from tennis_court_detection.utils.filters import filter_horizontal_lines
 from tennis_court_detection.utils.helpers import make_odd_kernel_size
-from tennis_court_detection.utils.validators import check_if_numpy_image
+from tennis_court_detection.utils.validators import check_if_numpy_image, exceeds_empty_threshold
 from tennis_court_detection.schemas.config import TraverseDirection
+from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 
 
 def interpolate_lines_intercept(lines: list[Line | None]) -> list[Line]:
@@ -113,6 +115,11 @@ def traverse_horizontal_line(
         
     img_copy = img.copy()
     img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    # x_diff = abs(p_c.x - p_left.x)
+    # expected_segment_count = math.ceil(x_diff / step) + 1
+
+    # print(f"{expected_segment_count=}")
     
     lines = []
     segment_xs = []
@@ -157,6 +164,10 @@ def traverse_horizontal_line(
 
 
         segment_xs.append((min(x1, x2), max(x1, x2)))
+
+        if get_debug_mode():
+            display_img(crop_copy)
+            cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
     
         if direction == 'left':
             x2 = x1
@@ -166,9 +177,9 @@ def traverse_horizontal_line(
             x1 = x2
             x2 += step
 
-        if get_debug_mode():
-            display_img(crop_copy)
-            cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
+
+    if exceeds_empty_threshold(lines):
+        raise NotEnoughLineSegmentsFound()
 
     interpolated_lines = interpolate_lines_intercept(lines)
 
