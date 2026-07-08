@@ -4,7 +4,7 @@ from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line, Line
 from cvgeomkit.geometry.points import transform_point
-from cvgeomkit.geometry.intersections import compute_intersections, Intersection
+from cvgeomkit.geometry.intersections import compute_intersections, Intersection, transform_intersection
 from cvgeomkit.geometry.segments import LineSegment
 
 from tennis_court_detection.schemas.config import ServiceSide, Surface, TraverseDirection
@@ -13,12 +13,15 @@ from tennis_court_detection.utils.helpers import (
     lines_from_gray_img,
     get_next_intersection_by_margin, 
     get_boundary_horizontal_intercection,
-    get_opposite_baseline_bounds
+    get_opposite_baseline_bounds,
+    angle_between_lines,
+    get_point_from_segments_by_point_y
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
     ensure_is_baseline
 )
+from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
     adjust_horizontal_line,
     traverse_sideline
@@ -41,7 +44,7 @@ class CourtDetector:
         self.roi_h_px = int(roi_height_ratio * self.img.height)
         self.step_px = int(step_height_ratio * self.img.height)
         self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_width_ratio)
-        self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_width_ratio)[0]
+        self.center_crop_img_gray, *_, self.center_crop_origin_x = crop_center_img(self.img_gray, crop_center_width_ratio)
         self.surface = surface
 
         if surface == Surface.CLAY or surface == Surface.GRASS:
@@ -61,7 +64,8 @@ class CourtDetector:
         min_line_len_ensure_width_ratio: float,
         max_line_gap_width_ratio: float,
         horizontal_line_slope_tolerance: float,
-        delta_ensure_height_ratio: float
+        delta_ensure_height_ratio: float,
+        **kwargs
     ) -> tuple[Line, list[Line]] | None:
         warmup = int(self.img.height / self.step_px * warmup_height_ratio)
         ch = self.center_crop_h
@@ -243,3 +247,79 @@ class CourtDetector:
         return (baseline_segments, left_outer_segments, 
                 left_inner_segments, right_inner_segments, 
                 right_outer_segments)
+    
+
+    def scan_for_horizontal_line(
+        self,
+        canny_lower_thresh: int,
+        canny_upper_thresh: int,
+        hough_thresh: int,
+        min_line_len_width_ratio: float,
+        max_line_gap_width_ratio: float,
+        h_margin_for_service_line_ratio: float,
+        baseline: Line,
+        left_inner_segments: list[LineSegment],
+        right_inner_segments: list[LineSegment],
+        **kwargs,
+    ) -> list[LineSegment] | None:
+        
+        roi = self.center_crop_img_gray[:int(baseline.intercept)]
+        
+        min_line_len_px = int(min_line_len_width_ratio * roi.width)
+        max_line_gap_px = int(max_line_gap_width_ratio * roi.width)
+        lines = lines_from_gray_img(
+            roi, 
+            canny_lower_thresh, 
+            canny_upper_thresh, 
+            hough_thresh,
+            min_line_len_px, 
+            max_line_gap_px
+        )
+        h_lines = filter_horizontal_lines(lines)
+        v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
+
+        if get_debug_mode():
+            crop_img_copy = roi.copy()
+            for line in h_lines:
+                p1, p2 = line.limit_to_img(crop_img_copy)
+                cv2.line(crop_img_copy, p1, p2, (0, 255, 0), 2)
+
+            for line in v_lines:
+                p1, p2 = line.limit_to_img(crop_img_copy)
+                cv2.line(crop_img_copy, p1, p2, (255, 255, 0), 2)
+
+            display_img(crop_img_copy)
+
+        h_margin_for_service_line_px = roi.height * h_margin_for_service_line_ratio
+        start_inter = set(compute_intersections(h_lines + v_lines, roi))
+        inter_candidates = []
+        for inter in start_inter:
+            if (85 < angle_between_lines(inter.line1, inter.line2) < 95) and (baseline.intercept - h_margin_for_service_line_px > inter.point.y):
+                inter_candidates.append(inter)
+
+        
+        sorted_candidates = sorted(inter_candidates, key=lambda x: x.point.y, reverse=True)
+        for inter in sorted_candidates:
+            try:
+                global_inter = transform_intersection(inter, roi, self.center_crop_origin_x, 0)
+                p = global_inter.point
+                p_left = get_point_from_segments_by_point_y(left_inner_segments, p, 'left')
+                p_right = get_point_from_segments_by_point_y(right_inner_segments, p, 'right')
+
+                center_service_line_segments = adjust_horizontal_line(self.img, p_left, p_right)
+
+                if get_debug_mode():
+                    img_copy = self.img.copy()
+                    for ls in center_service_line_segments:
+                        cv2.line(img_copy, ls.start, ls.end, (0, 255, 0), 1)
+                    display_img(img_copy)
+
+                return center_service_line_segments
+            
+            except NotEnoughLineSegmentsFound:
+                continue
+
+
+
+
+        
