@@ -14,6 +14,7 @@ def filter_horizontal_lines(
     lines: list[Line],
     slope_thresh: float = 0.02,
     horizontal: bool = True,
+    include_none_slope: bool = False
 ) -> list[Line] | None:
     validate_number(slope_thresh, float, 0, 0.2)
 
@@ -27,7 +28,7 @@ def filter_horizontal_lines(
         filtered = [
             line
             for line in lines
-            if line.slope is not None and abs(line.slope) > slope_thresh
+            if (line.slope is not None and abs(line.slope) > slope_thresh) or (include_none_slope and line.slope is None)
         ]
 
     return filtered if filtered else None
