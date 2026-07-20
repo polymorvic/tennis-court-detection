@@ -65,7 +65,7 @@ def lines_from_gray_img(
         display_img(img_copy)
 
     if segments is None:
-        return
+        return []
     
     return [Line.from_hough_segment(*segment) for segment in segments]
 
@@ -267,5 +267,8 @@ def get_point_from_segments_by_point_y(
             ls_points.append((ls.start, ls.end))
 
     xs = sum([(p1.x, p2.x) for p1, p2 in ls_points], ())
+
+    if not xs:
+        raise ValueError('nie znaleziono xs')
 
     return Point(max(xs) if side == 'left' else min(xs), point.y)
