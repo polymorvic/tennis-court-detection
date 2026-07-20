@@ -178,7 +178,8 @@ class CourtDetector:
 
     def find_sidelines_segments(
         self,
-        baseline_intersections: list[Intersection]
+        baseline_intersections: list[Intersection],
+        sidelines_intersections_distance_max_ratio: float = 0.05
     ) -> tuple[LineSegment, LineSegment, LineSegment, LineSegment]:
         temp_img = self.img.copy()
         if self.surface == Surface.CLAY or self.surface == Surface.GRASS:
@@ -205,6 +206,18 @@ class CourtDetector:
             right_outer_intersection, 
             TraverseDirection.LEFT
         )
+
+        left_points_dist = left_outer_intersection.point.distance(
+            left_inner_intersection.point
+        )
+
+        right_points_dist = right_outer_intersection.point.distance(
+            right_inner_intersection.point
+        )
+
+        if abs(left_points_dist - right_points_dist) > sidelines_intersections_distance_max_ratio * self.img.width:
+            raise ValueError('edge case cos nie tak z sideline')
+
 
         baseline_segments = adjust_horizontal_line(
             temp_img, 
@@ -263,15 +276,15 @@ class CourtDetector:
         **kwargs,
     ) -> list[LineSegment] | None:
         
-        roi = self.center_crop_img_gray[:int(baseline.intercept)]
-        
+        roi = NumpyImage(self.center_crop_img_gray[:int(baseline.intercept)])
+    
         min_line_len_px = int(min_line_len_width_ratio * roi.width)
         max_line_gap_px = int(max_line_gap_width_ratio * roi.width)
         lines = lines_from_gray_img(
             roi, 
             canny_lower_thresh, 
             canny_upper_thresh, 
-            hough_thresh,
+            hough_thresh - 20,
             min_line_len_px, 
             max_line_gap_px
         )
