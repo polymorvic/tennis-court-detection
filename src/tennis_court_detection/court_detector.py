@@ -7,7 +7,7 @@ from cvgeomkit.geometry.points import transform_point
 from cvgeomkit.geometry.intersections import compute_intersections, Intersection, transform_intersection
 from cvgeomkit.geometry.segments import LineSegment
 
-from tennis_court_detection.schemas.config import ServiceSide, Surface, TraverseDirection
+from tennis_court_detection.schemas.config import ServiceSide, Surface, Direction
 from tennis_court_detection.utils.helpers import (
     crop_center_img, 
     lines_from_gray_img,
@@ -15,7 +15,9 @@ from tennis_court_detection.utils.helpers import (
     get_boundary_horizontal_intercection,
     get_opposite_baseline_bounds,
     angle_between_lines,
-    get_point_from_segments_by_point_y
+    get_point_from_segments_by_point_y,
+    pair_horizontal_lines,
+    get_center_point_from_2_half_lines
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -24,7 +26,9 @@ from tennis_court_detection.utils.filters import (
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
     adjust_horizontal_line,
-    traverse_sideline
+    traverse_sideline,
+    scan_line_segments_for_horizontal_lines,
+    traverse_horizontal_line
 )
 from tennis_court_detection.config import get_debug_mode
 
@@ -188,23 +192,23 @@ class CourtDetector:
 
         left_outer_intersection = get_boundary_horizontal_intercection(
             baseline_intersections, 
-            TraverseDirection.LEFT
+            Direction.LEFT
         )
         right_outer_intersection = get_boundary_horizontal_intercection(
             baseline_intersections, 
-            TraverseDirection.RIGHT
+            Direction.RIGHT
         )
         left_inner_intersection = get_next_intersection_by_margin(
             self.img, 
             baseline_intersections, 
             left_outer_intersection, 
-            TraverseDirection.RIGHT
+            Direction.RIGHT
         )
         right_inner_intersection = get_next_intersection_by_margin(
             self.img, 
             baseline_intersections, 
             right_outer_intersection, 
-            TraverseDirection.LEFT
+            Direction.LEFT
         )
 
         left_points_dist = left_outer_intersection.point.distance(
@@ -248,89 +252,57 @@ class CourtDetector:
             temp_img
         )
 
-        # left_p, right_p = get_opposite_baseline_bounds(
-        #     left_outer_segments, 
-        #     right_outer_segments
-        # )
-
-        # opposite_baseline_segments = adjust_horizontal_line(
-        #     temp_img, left_p, right_p
-        # )
-
         return (baseline_segments, left_outer_segments, 
                 left_inner_segments, right_inner_segments, 
                 right_outer_segments)
     
 
-    def scan_for_horizontal_line(
+    def scan_for_horizontal_lines(
         self,
-        canny_lower_thresh: int,
-        canny_upper_thresh: int,
-        hough_thresh: int,
-        min_line_len_width_ratio: float,
-        max_line_gap_width_ratio: float,
-        h_margin_for_service_line_ratio: float,
-        baseline: Line,
-        left_inner_segments: list[LineSegment],
-        right_inner_segments: list[LineSegment],
+        left_segments: list[LineSegment],
+        right_segments: list[LineSegment],
+        near_line_tol_ratio: float = 0.01,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 50,
+        min_line_len_width_ratio: float = 0.5,
+        max_line_gap_width_ratio: float = 0.1,
+        roi_window_width_ratio: float = 0.1,
         **kwargs,
     ) -> list[LineSegment] | None:
         
-        roi = NumpyImage(self.center_crop_img_gray[:int(baseline.intercept)])
-    
-        min_line_len_px = int(min_line_len_width_ratio * roi.width)
-        max_line_gap_px = int(max_line_gap_width_ratio * roi.width)
-        lines = lines_from_gray_img(
-            roi, 
-            canny_lower_thresh, 
-            canny_upper_thresh, 
-            hough_thresh - 20,
-            min_line_len_px, 
-            max_line_gap_px
+        left_h_lines = scan_line_segments_for_horizontal_lines(
+            self.img, 
+            left_segments, 
+            Direction.LEFT,
+            roi_window_width_ratio,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_width_ratio,
+            max_line_gap_width_ratio,
         )
-        h_lines = filter_horizontal_lines(lines)
-        v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
-
-        if get_debug_mode():
-            crop_img_copy = roi.copy()
-            for line in h_lines:
-                p1, p2 = line.limit_to_img(crop_img_copy)
-                cv2.line(crop_img_copy, p1, p2, (0, 255, 0), 2)
-
-            for line in v_lines:
-                p1, p2 = line.limit_to_img(crop_img_copy)
-                cv2.line(crop_img_copy, p1, p2, (255, 255, 0), 2)
-
-            display_img(crop_img_copy)
-
-        h_margin_for_service_line_px = roi.height * h_margin_for_service_line_ratio
-        start_inter = set(compute_intersections(h_lines + v_lines, roi))
-        inter_candidates = []
-        for inter in start_inter:
-            if (85 < angle_between_lines(inter.line1, inter.line2) < 95) and (baseline.intercept - h_margin_for_service_line_px > inter.point.y):
-                inter_candidates.append(inter)
-
         
-        sorted_candidates = sorted(inter_candidates, key=lambda x: x.point.y, reverse=True)
-        for inter in sorted_candidates:
-            try:
-                global_inter = transform_intersection(inter, roi, self.center_crop_origin_x, 0)
-                p = global_inter.point
-                p_left = get_point_from_segments_by_point_y(left_inner_segments, p, 'left')
-                p_right = get_point_from_segments_by_point_y(right_inner_segments, p, 'right')
+        right_h_lines = scan_line_segments_for_horizontal_lines(
+            self.img, 
+            right_segments, 
+            Direction.RIGHT,
+            roi_window_width_ratio,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_width_ratio,
+            max_line_gap_width_ratio,
+        )
 
-                center_service_line_segments = adjust_horizontal_line(self.img, p_left, p_right)
+        paired_half_lines = pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
 
-                if get_debug_mode():
-                    img_copy = self.img.copy()
-                    for ls in center_service_line_segments:
-                        cv2.line(img_copy, ls.start, ls.end, (0, 255, 0), 1)
-                    display_img(img_copy)
-
-                return center_service_line_segments
+        for hl1, hl2 in paired_half_lines:
             
-            except NotEnoughLineSegmentsFound:
-                continue
+            ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
+            break
+        # linia prostopadla ktora znajduje sie manije wiecej an srodku i jest wertykanlna
+
 
 
 
