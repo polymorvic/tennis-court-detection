@@ -173,7 +173,7 @@ def check_is_service_line(
     line_segments: list[LineSegment],
     kernel_size_ratio: float = 0.3,
     window_size_ratio: float = 0.016,
-    middle_ratio: float = 0.3,
+    middle_ratio: float = 0.1,
     x_overlap_ratio: float = 0.3,
     h_delta_up_ratio: float = 0.028,
     canny_lower_thresh: int = 20,
