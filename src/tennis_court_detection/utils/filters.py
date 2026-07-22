@@ -8,7 +8,7 @@ from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.utils.plotting import display_img
 
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
-from tennis_court_detection.utils.helpers import lines_from_gray_img, angle_between_lines
+from tennis_court_detection.utils.helpers import lines_from_gray_img, angle_between_lines, make_odd_kernel_size
 from tennis_court_detection.config import get_debug_mode
 
 
@@ -171,9 +171,11 @@ def ensure_is_baseline(
 def check_is_service_line(
     img: ArrayLike,
     line_segments: list[LineSegment],
+    kernel_size_ratio: float = 0.3,
+    window_size_ratio: float = 0.016,
     middle_ratio: float = 0.3,
+    x_overlap_ratio: float = 0.3,
     h_delta_up_ratio: float = 0.028,
-    h_delta_bottom_ratio: float = 0.005,
     canny_lower_thresh: int = 20,
     canny_upper_thresh: int = 100,
     hough_thresh: int = 20,
@@ -187,26 +189,36 @@ def check_is_service_line(
     jesli tak to bierzemy po obu stronach pionowe linie i szukamy intersekcji z dolna linia horyzontalna
     jesli nic nie znaleziono to oznacza ze to nie jest service line
     '''
-    if not 0.0 <= middle_ratio <= 1.0:
-        raise ValueError("middle_ratio must be between 0.0 and 1.0")
     
     img = check_if_numpy_image(img)
+    h_delta_up_px = int(h_delta_up_ratio * img.height)
+
+    window_size = int(img.height * window_size_ratio)
+    kernel_size = make_odd_kernel_size(window_size, kernel_size_ratio)
 
     keep = round(len(line_segments) * middle_ratio)
     start = (len(line_segments) - keep) // 2
+    line_segments_to_check = line_segments[start:start + keep]
 
-    h_delta_up_px = int(h_delta_up_ratio * img.height)
-    h_delta_bottom_px = int(h_delta_bottom_ratio * img.height)
-    ls_to_check = line_segments[start:start + keep]
+    for ls in line_segments_to_check:
+        x_start = min(ls.start.x, ls.end.x)
+        x_end = max(ls.start.x, ls.end.x)
 
-    for ls in ls_to_check:
-        roi = img[ls.start.y - h_delta_up_px: ls.start.y + h_delta_bottom_px, ls.start.x:ls.end.x]
+        line_width = x_end - x_start
+        x_overlap_px = int(line_width * x_overlap_ratio)
+
+        roi = img[
+            ls.start.y - h_delta_up_px: ls.start.y, 
+            x_start - x_overlap_px:x_end + x_overlap_px
+            ]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+        roi_blur = cv2.medianBlur(roi_gray, kernel_size)
+
         min_line_len_px = int(min_line_len_ratio * roi.height)
         max_line_gap_px = int(max_line_gap_ratio * roi.height)
-        roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
 
         lines = lines_from_gray_img(
-            roi_gray, 
+            roi_blur, 
             canny_lower_thresh, 
             canny_upper_thresh, 
             hough_thresh, 
@@ -221,7 +233,7 @@ def check_is_service_line(
                 cv2.line(roi_copy, p1, p2, (255, 0, 0), 1)
             display_img(roi_copy)
 
-        if not lines:
+        if not lines or lines is None:
             continue
 
         h_line = sorted(filter_horizontal_lines(lines), key = lambda line: line.intercept, reverse=True)[0]
@@ -234,7 +246,7 @@ def check_is_service_line(
         for v_line in v_lines:
             angle = angle_between_lines(h_line, v_line)
 
-            if 85 <= angle <= 95 or 265 <= angle <= 275:
+            if 88 <= angle <= 92 or 268 <= angle <= 272:
                 inter = v_line.intersection(h_line, roi)
                 global_inter = transform_intersection(inter, roi, ls.start.x, ls.start.y - h_delta_up_px)
                 intersections.append(global_inter)
