@@ -302,16 +302,14 @@ class CourtDetector:
 
     def find_service_line_and_centre_service_line(
         self,
-        paired_half_lines: list[tuple[HalfLine, HalfLine]]
+        service_line_candidate: list[tuple[HalfLine, HalfLine]]
     ) -> tuple[LineSegment, Intersection] | None:
-        
-        for hl1, hl2 in paired_half_lines:
+        hl1, hl2 = service_line_candidate
+        ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
+        intersections = check_is_service_line(self.img, ls)
 
-            ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
-            intersections = check_is_service_line(self.img, ls)
-
-            if intersections:
-                return ls, intersections
+        if intersections:
+            return ls, intersections
 
         
 
