@@ -300,7 +300,7 @@ class CourtDetector:
         return pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
 
 
-    def find_service_line_and_centre_service_line(
+    def find_service_line(
         self,
         service_line_candidate: list[tuple[HalfLine, HalfLine]]
     ) -> tuple[LineSegment, Intersection] | None:

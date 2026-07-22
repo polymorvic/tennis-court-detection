@@ -91,7 +91,7 @@ def run(
             continue
 
         try:
-            result = detector.find_service_line_and_centre_service_line(paired_horizontal_half_lines[0])
+            result = detector.find_service_line(paired_horizontal_half_lines[0])
         except Exception:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
