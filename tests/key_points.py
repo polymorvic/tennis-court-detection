@@ -58,6 +58,7 @@ def run(
             continue
 
         img = read_image_as_numpyimage(file)
+        img_copy = img.copy()
 
         surface = get_surface_from_filename(file.name)
         detector = CourtDetector(img, **basic_params.model_dump(), surface=surface)
@@ -90,10 +91,15 @@ def run(
             continue
 
         try:
-            service_line_segments, inters = detector.find_service_line_and_centre_service_line(paired_horizontal_half_lines)
+            result = detector.find_service_line_and_centre_service_line(paired_horizontal_half_lines[0])
         except Exception:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
+
+        if result is None:
+            continue
+
+        service_line_segments, inters = result
 
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 
