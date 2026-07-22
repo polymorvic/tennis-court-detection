@@ -19,7 +19,7 @@ class Surface(StrEnum):
     HARD = "hard"
 
 
-class TraverseDirection(StrEnum):
+class Direction(StrEnum):
     LEFT = "left"
     RIGHT = "right"
 
