@@ -12,10 +12,11 @@ import numpy as np
 from scipy.ndimage import median_filter
 
 from tennis_court_detection.config import get_debug_mode
+from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.filters import filter_horizontal_lines
-from tennis_court_detection.utils.helpers import make_odd_kernel_size
+from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img
 from tennis_court_detection.utils.validators import check_if_numpy_image, exceeds_empty_threshold
-from tennis_court_detection.schemas.config import TraverseDirection
+from tennis_court_detection.schemas.config import Direction
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 
 
@@ -92,7 +93,7 @@ def traverse_horizontal_line(
     img: np.ndarray,
     p_left: Point,
     p_right: Point,
-    direction: TraverseDirection,
+    direction: Direction,
     step_ratio: float = 0.026,
     h_delta_ratio: float = 0.0186,
     lower_canny_thresh: int = 20,
@@ -106,7 +107,7 @@ def traverse_horizontal_line(
     step = int(img.width * step_ratio)
     h_delta = int(img.height * h_delta_ratio)
 
-    if direction == TraverseDirection.LEFT:
+    if direction == Direction.LEFT:
         x1 = p_c.x - step
         x2 = p_c.x
     else:
@@ -201,11 +202,11 @@ def adjust_horizontal_line(
     height_delta_ratio: float = 0.0186
 ) -> list[LineSegment]:
     lines_left, xs_left = traverse_horizontal_line(
-        img, left_point, right_point, TraverseDirection.LEFT,
+        img, left_point, right_point, Direction.LEFT,
         step_ratio, height_delta_ratio
     )
     lines_right, xs_right = traverse_horizontal_line(
-        img, left_point, right_point, TraverseDirection.RIGHT,
+        img, left_point, right_point, Direction.RIGHT,
         step_ratio, height_delta_ratio
     )
 
@@ -380,3 +381,60 @@ def traverse_sideline(
         display_img(original_img_copy)
 
     return line_segments
+
+
+def scan_line_segments_for_horizontal_lines(
+    img: ArrayLike,
+    line_segments: list[LineSegment],
+    side: Direction,
+    roi_window_width_ratio: float = 0.1,
+    canny_lower_thresh: int = 20,
+    canny_upper_thresh: int = 100,
+    hough_thresh: int = 50,
+    min_len_ratio: float = 0.5,
+    max_gap_ratio: float = 0.1
+) -> list[HalfLine]:
+    img_copy = img.copy()
+    half_lines = set()
+
+    for segment in line_segments[2:]:
+        min_x, max_x = sorted((segment.start.x, segment.end.x))
+        min_y, max_y = sorted((segment.start.y, segment.end.y))
+
+        roi = {
+            'left': img[min_y:max_y, min_x:int(max_x + roi_window_width_ratio*img_copy.width)],
+            'right': img[min_y:max_y, int(min_x - roi_window_width_ratio*img_copy.width):max_x]
+        }[side]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+
+        min_len_px = int(min_len_ratio * roi.width)
+        max_gap_px = int(max_gap_ratio * roi.width)
+        lines = lines_from_gray_img(roi_gray, canny_lower_thresh, canny_upper_thresh, hough_thresh, min_len_px, max_gap_px)
+
+        h_lines = filter_horizontal_lines(lines)
+        if not h_lines:
+            continue
+
+        for line in h_lines:
+            global_line = transform_line(line, roi, min_x, min_y)
+
+            x = {
+                Direction.LEFT: min_x,
+                Direction.RIGHT: max_x
+            }[side]
+            point = Point(x, int(global_line.intercept))
+
+            half_line = HalfLine(point = point, line = global_line)
+            half_lines.add(half_line)
+
+        if get_debug_mode():
+            roi_gray_copy = roi_gray.copy()
+            for line in h_lines:
+                p1, p2 = line.limit_to_img(roi_gray)
+                cv2.line(roi_gray_copy, p1, p2, (255, 0, 0), 3)
+            display_img(roi_gray_copy)
+
+        if get_debug_mode():
+            cv2.rectangle(img_copy, (min_x, min_y), (int(max_x + roi_window_width_ratio*img_copy.width), max_y), (255, 0, 0), 3)
+
+    return sorted(half_lines, key=lambda half_line: half_line.line.intercept)
