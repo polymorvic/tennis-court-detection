@@ -1,3 +1,4 @@
+from itertools import combinations
 from pathlib import Path
 import cv2
 import numpy as np
@@ -305,3 +306,55 @@ def get_center_point_from_2_half_lines(
     p_x = int(abs(half_line1.point.x - half_line2.point.x))
     p_y = int(abs(half_line1.point.y - half_line2.point.y))
     return Point(p_x, p_y)
+
+
+def order_ls_points(
+    ls: LineSegment
+) -> Point:
+    p1, p2 = ls.start, ls.end
+    if (p1.y, p1.x) <= (p2.y, p2.x):
+        return p1, p2
+    else:
+        return p2, p1
+
+
+def count_vertical_line_segment_pairs_distances(
+    img: ArrayLike,
+    line_segments: list[LineSegment],
+) -> tuple[LineSegment, LineSegment, int | float]:
+    ls_pairs_distances = []
+    for ls1, ls2 in combinations(line_segments, 2):
+        top1, bottom1 = order_ls_points(ls1)
+        top2, bottom2 = order_ls_points(ls2)
+
+        if abs(top1.x - top2.x) < 2 or abs(bottom1.x - bottom2.x) < 2:
+            continue
+
+        line1 = Line.from_points(top1, bottom1)
+        line2 = Line.from_points(top2, bottom2)
+
+        if line1.intersection(line2, img):
+            continue
+
+        if abs(top1.x - top2.x) == abs(bottom1.x - bottom2.x):
+            dist = abs(top1.x - top2.x)
+        else:
+            dist_top = abs(top1.x - top2.x)
+            dist_bottom = abs(bottom1.x - bottom2.x)
+            dist = (dist_top + dist_bottom) / 2
+
+        ls_pairs_distances.append((ls1, ls2, dist))
+
+    return sorted(ls_pairs_distances, key = lambda item: item[-1])[0]
+
+
+
+
+
+
+
+
+def pair_vertical_lines(
+    line_segments: list[LineSegment,]
+):
+    pass
