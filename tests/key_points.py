@@ -32,6 +32,9 @@ def run(
     proj_cwd = Path.cwd()
     pics_path = proj_cwd / pics_path
     test_out_dir = build_output_dir(proj_cwd / output_dir, test_type)
+    not_found_dir = test_out_dir / 'not_found'
+
+    not_found_dir.mkdir(exist_ok=True)
 
     tcac = TennisCourtAnnotationCollection.from_clean_file(annotation_path)
     params = load_process_params(params_path)
@@ -62,6 +65,7 @@ def run(
 
         if result is None:
             not_found.append(file.name)
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
         else:
             baseline, sidelines = result
@@ -72,55 +76,34 @@ def run(
             segments = detector.find_sidelines_segments(intersections)
 
         except Exception:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
         
         baseline_segments, left_outer_segments, left_inner_segments,right_inner_segments, right_outer_segments = segments
 
+        paired_horizontal_half_lines = detector.scan_for_horizontal_lines(
+            **baseline_params.model_dump(), 
+            left_segments=left_inner_segments, 
+            right_segments=right_inner_segments)
+        
+        if not paired_horizontal_half_lines:
+            continue
 
-        court_image = np.zeros_like(img, dtype=np.uint8)
-
-        for segments in [baseline_segments, left_outer_segments, 
-                        left_inner_segments, right_inner_segments, right_outer_segments]:
-            for segment in segments:
-                cv2.line(court_image, segment.start, segment.end, (255, 0, 0), 5)
+        try:
+            service_line_segments, inters = detector.find_service_line_and_centre_service_line(paired_horizontal_half_lines)
+        except Exception:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+            continue
 
         img_copy = img.copy()
-        mask_rgb = np.where(court_image, court_image, img_copy)
+        for segments in [baseline_segments, left_outer_segments, 
+                        left_inner_segments, right_inner_segments, right_outer_segments,
+                        service_line_segments]:
 
-        mask_save = cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(str(test_out_dir / file.name), mask_save)
+            for segment in segments:
+                cv2.line(img_copy, segment.start, segment.end, (255, 0, 0), 1)
 
-        
-
-
-
-
-    #     results.append({
-    #         'pic_name': file.name,
-    #         'pred_line': pred_line,
-    #         'gt_line': gt_line,
-    #         'pred_intercept': pred_line.intercept,
-    #         'gt_intercept': gt_line.intercept,
-    #     })
-
-    # intercept_errors = prepare_test_results_report(
-    #     test_out_dir,
-    #     results,
-    #     not_found,
-    #     no_annotation,
-    #     f'_{test_type.value}-report'
-
-    # )
-
-    # save_test_histogram(
-    #     test_out_dir, 
-    #     intercept_errors, 
-    #     f'_{test_type.value}-hist', 
-    #     test_type.value
-    # )
-
-    
-
+        cv2.imwrite(str(test_out_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
 
 
 if __name__ == '__main__':
