@@ -21,7 +21,8 @@ from tennis_court_detection.utils.helpers import (
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
-    ensure_is_baseline
+    ensure_is_baseline,
+    check_is_service_line
 )
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
@@ -31,6 +32,7 @@ from tennis_court_detection.utils.adjustments import (
     traverse_horizontal_line
 )
 from tennis_court_detection.config import get_debug_mode
+from tennis_court_detection.schemas.court import HalfLine
 
 
 class CourtDetector:
@@ -295,13 +297,25 @@ class CourtDetector:
             max_line_gap_width_ratio,
         )
 
-        paired_half_lines = pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
+        return pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
 
+
+    def find_service_line_and_centre_service_line(
+        self,
+        paired_half_lines: list[tuple[HalfLine, HalfLine]]
+    ) -> tuple[LineSegment, Intersection] | None:
+        
         for hl1, hl2 in paired_half_lines:
-            
+
             ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
-            break
-        # linia prostopadla ktora znajduje sie manije wiecej an srodku i jest wertykanlna
+            intersections = check_is_service_line(self.img, ls)
+
+            if intersections:
+                return ls, intersections
+
+        
+
+
 
 
 
