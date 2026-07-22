@@ -8,7 +8,8 @@ from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
-from tennis_court_detection.schemas.config import Params, PicsBlacklist, TraverseDirection
+from tennis_court_detection.schemas.config import Params, PicsBlacklist, Direction
+from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
 from tennis_court_detection.config import get_debug_mode
 
@@ -65,7 +66,7 @@ def lines_from_gray_img(
         display_img(img_copy)
 
     if segments is None:
-        return
+        return []
     
     return [Line.from_hough_segment(*segment) for segment in segments]
 
@@ -195,7 +196,7 @@ def get_next_intersection_by_margin(
     img: ArrayLike,
     intersections: list[Intersection],
     start_intersection: Intersection,
-    direction: TraverseDirection,
+    direction: Direction,
     margin_ratio: float = 0.02
 ) -> Intersection | None:
     img = check_if_numpy_image(img)
@@ -203,7 +204,7 @@ def get_next_intersection_by_margin(
     sorted_intersections = sorted(intersections, key = lambda inter: inter.point.x)
     start_idx = sorted_intersections.index(start_intersection)
     
-    if direction == TraverseDirection.RIGHT:
+    if direction == Direction.RIGHT:
         iter_intersections = sorted_intersections[start_idx:]
     else:
         iter_intersections = sorted_intersections[:start_idx][::-1]
@@ -215,20 +216,27 @@ def get_next_intersection_by_margin(
 
 def get_boundary_horizontal_intercection(
     intersections: list[Intersection], 
-    direction: TraverseDirection
+    direction: Direction
 ) -> Intersection:
     sorted_intersections = sorted(intersections, key = lambda inter: inter.point.x)
-    idx = 0 if direction == TraverseDirection.LEFT else -1
+    idx = 0 if direction == Direction.LEFT else -1
     return sorted_intersections[idx]
     
 
 def compute_intersections_for_line(
     ref_line: Line,
     other_lines: list[Line],
-    img: ArrayLike
+    img: ArrayLike,
+    exclude_similar_slope: bool = False
 ) -> list[Intersection]:
     intersections = []
     for line in other_lines:
+
+        if exclude_similar_slope:
+            angle = angle_between_lines(ref_line, line)
+            if angle < 10 or 190 > angle > 170 or angle > 350:
+                continue
+
         inter = ref_line.intersection(line, img)
         intersections.append(inter)
     return intersections
@@ -247,3 +255,53 @@ def get_opposite_baseline_bounds(
     right_bound = Point(x=right_bound.x, y=baseline_y)
 
     return left_bound, right_bound
+
+
+def get_point_from_segments_by_point_y(
+    line_segments: list[LineSegment], 
+    point: Point, 
+    side: str
+) -> Point:
+    ls_points = []
+    for ls in line_segments:
+        if (ls.end.y <= point.y <= ls.start.y) or (ls.start.y <= point.y <= ls.end.y):
+            ls_points.append((ls.start, ls.end))
+
+    xs = sum([(p1.x, p2.x) for p1, p2 in ls_points], ())
+
+    if not xs:
+        raise ValueError('nie znaleziono xs')
+
+    return Point(max(xs) if side == 'left' else min(xs), point.y)
+
+
+def pair_horizontal_lines(
+    img: ArrayLike,
+    tolerance_ratio: float,
+    left_h_lines: list[HalfLine],
+    right_h_lines: list[HalfLine],
+) -> list[tuple[HalfLine, HalfLine]]:
+    img = check_if_numpy_image(img)
+    tol_px = img.height * tolerance_ratio
+
+    left_intercept_arr = np.array([half_line.line.intercept for half_line in left_h_lines])
+    right_intercept_arr = np.array([half_line.line.intercept for half_line in right_h_lines])
+
+    dist_matrix = np.abs(left_intercept_arr[:, np.newaxis] - right_intercept_arr)
+
+    is_below_threshold = dist_matrix < tol_px
+    is_min_h = dist_matrix == dist_matrix.min(axis=1, keepdims=True)
+    is_min_v = dist_matrix == dist_matrix.min(axis=0)
+
+    loc = np.argwhere(is_below_threshold & is_min_h & is_min_v)
+
+    return [(left_h_lines[i], right_h_lines[j]) for i, j in loc]
+
+
+def get_center_point_from_2_half_lines(
+    half_line1: HalfLine,
+    half_line2: HalfLine
+) -> Point:
+    p_x = int(abs(half_line1.point.x - half_line2.point.x))
+    p_y = int(abs(half_line1.point.y - half_line2.point.y))
+    return Point(p_x, p_y)

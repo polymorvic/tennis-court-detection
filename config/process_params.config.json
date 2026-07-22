@@ -25,7 +25,8 @@
             "min_line_len_ensure_width_ratio": 0.05,
             "max_line_gap_width_ratio": 0.01,
             "horizontal_line_slope_tolerance": 0.03,
-            "delta_ensure_height_ratio": 0.1
+            "delta_ensure_height_ratio": 0.1,
+            "h_margin_for_service_line_ratio": 0.1
         }
     }
 

@@ -19,7 +19,7 @@ class Surface(StrEnum):
     HARD = "hard"
 
 
-class TraverseDirection(StrEnum):
+class Direction(StrEnum):
     LEFT = "left"
     RIGHT = "right"
 
@@ -58,6 +58,7 @@ class BaselineParams(BaseModel):
     max_line_gap_width_ratio: float = Field(default=0.005, ge=0)
     horizontal_line_slope_tolerance: float = Field(default=0.03, ge=0)
     delta_ensure_height_ratio: float = Field(default=0.1, ge=0)
+    h_margin_for_service_line_ratio: float = Field(default=0.1, ge=0)
 
     @model_validator(mode="after")
     def validate_thresholds(self):

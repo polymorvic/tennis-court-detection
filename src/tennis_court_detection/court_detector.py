@@ -4,24 +4,31 @@ from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line, Line
 from cvgeomkit.geometry.points import transform_point
-from cvgeomkit.geometry.intersections import compute_intersections, Intersection
+from cvgeomkit.geometry.intersections import compute_intersections, Intersection, transform_intersection
 from cvgeomkit.geometry.segments import LineSegment
 
-from tennis_court_detection.schemas.config import ServiceSide, Surface, TraverseDirection
+from tennis_court_detection.schemas.config import ServiceSide, Surface, Direction
 from tennis_court_detection.utils.helpers import (
     crop_center_img, 
     lines_from_gray_img,
     get_next_intersection_by_margin, 
     get_boundary_horizontal_intercection,
-    get_opposite_baseline_bounds
+    get_opposite_baseline_bounds,
+    angle_between_lines,
+    get_point_from_segments_by_point_y,
+    pair_horizontal_lines,
+    get_center_point_from_2_half_lines
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
     ensure_is_baseline
 )
+from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
     adjust_horizontal_line,
-    traverse_sideline
+    traverse_sideline,
+    scan_line_segments_for_horizontal_lines,
+    traverse_horizontal_line
 )
 from tennis_court_detection.config import get_debug_mode
 
@@ -41,7 +48,7 @@ class CourtDetector:
         self.roi_h_px = int(roi_height_ratio * self.img.height)
         self.step_px = int(step_height_ratio * self.img.height)
         self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_width_ratio)
-        self.center_crop_img_gray = crop_center_img(self.img_gray, crop_center_width_ratio)[0]
+        self.center_crop_img_gray, *_, self.center_crop_origin_x = crop_center_img(self.img_gray, crop_center_width_ratio)
         self.surface = surface
 
         if surface == Surface.CLAY or surface == Surface.GRASS:
@@ -61,7 +68,8 @@ class CourtDetector:
         min_line_len_ensure_width_ratio: float,
         max_line_gap_width_ratio: float,
         horizontal_line_slope_tolerance: float,
-        delta_ensure_height_ratio: float
+        delta_ensure_height_ratio: float,
+        **kwargs
     ) -> tuple[Line, list[Line]] | None:
         warmup = int(self.img.height / self.step_px * warmup_height_ratio)
         ch = self.center_crop_h
@@ -174,7 +182,8 @@ class CourtDetector:
 
     def find_sidelines_segments(
         self,
-        baseline_intersections: list[Intersection]
+        baseline_intersections: list[Intersection],
+        sidelines_intersections_distance_max_ratio: float = 0.05
     ) -> tuple[LineSegment, LineSegment, LineSegment, LineSegment]:
         temp_img = self.img.copy()
         if self.surface == Surface.CLAY or self.surface == Surface.GRASS:
@@ -183,24 +192,36 @@ class CourtDetector:
 
         left_outer_intersection = get_boundary_horizontal_intercection(
             baseline_intersections, 
-            TraverseDirection.LEFT
+            Direction.LEFT
         )
         right_outer_intersection = get_boundary_horizontal_intercection(
             baseline_intersections, 
-            TraverseDirection.RIGHT
+            Direction.RIGHT
         )
         left_inner_intersection = get_next_intersection_by_margin(
             self.img, 
             baseline_intersections, 
             left_outer_intersection, 
-            TraverseDirection.RIGHT
+            Direction.RIGHT
         )
         right_inner_intersection = get_next_intersection_by_margin(
             self.img, 
             baseline_intersections, 
             right_outer_intersection, 
-            TraverseDirection.LEFT
+            Direction.LEFT
         )
+
+        left_points_dist = left_outer_intersection.point.distance(
+            left_inner_intersection.point
+        )
+
+        right_points_dist = right_outer_intersection.point.distance(
+            right_inner_intersection.point
+        )
+
+        if abs(left_points_dist - right_points_dist) > sidelines_intersections_distance_max_ratio * self.img.width:
+            raise ValueError('edge case cos nie tak z sideline')
+
 
         baseline_segments = adjust_horizontal_line(
             temp_img, 
@@ -231,15 +252,59 @@ class CourtDetector:
             temp_img
         )
 
-        # left_p, right_p = get_opposite_baseline_bounds(
-        #     left_outer_segments, 
-        #     right_outer_segments
-        # )
-
-        # opposite_baseline_segments = adjust_horizontal_line(
-        #     temp_img, left_p, right_p
-        # )
-
         return (baseline_segments, left_outer_segments, 
                 left_inner_segments, right_inner_segments, 
                 right_outer_segments)
+    
+
+    def scan_for_horizontal_lines(
+        self,
+        left_segments: list[LineSegment],
+        right_segments: list[LineSegment],
+        near_line_tol_ratio: float = 0.01,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 50,
+        min_line_len_width_ratio: float = 0.5,
+        max_line_gap_width_ratio: float = 0.1,
+        roi_window_width_ratio: float = 0.1,
+        **kwargs,
+    ) -> list[LineSegment] | None:
+        
+        left_h_lines = scan_line_segments_for_horizontal_lines(
+            self.img, 
+            left_segments, 
+            Direction.LEFT,
+            roi_window_width_ratio,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_width_ratio,
+            max_line_gap_width_ratio,
+        )
+        
+        right_h_lines = scan_line_segments_for_horizontal_lines(
+            self.img, 
+            right_segments, 
+            Direction.RIGHT,
+            roi_window_width_ratio,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_width_ratio,
+            max_line_gap_width_ratio,
+        )
+
+        paired_half_lines = pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
+
+        for hl1, hl2 in paired_half_lines:
+            
+            ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
+            break
+        # linia prostopadla ktora znajduje sie manije wiecej an srodku i jest wertykanlna
+
+
+
+
+
+        

@@ -41,3 +41,11 @@ def validate_number(
         if not valid_max:
             op = "<=" if max_inclusive else "<"
             raise ValueError(f"Value must be {op} {max_value}")
+        
+
+def exceeds_empty_threshold(
+    values: list | tuple, 
+    threshold: float = 0.8
+) -> bool:
+    empty_count = sum(v is None for v in values)
+    return empty_count / len(values) >= threshold if values else False

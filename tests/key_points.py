@@ -66,8 +66,14 @@ def run(
         else:
             baseline, sidelines = result
 
-        intersections = compute_intersections_for_line(baseline, sidelines, img)
-        segments = detector.find_sidelines_segments(intersections)
+        intersections = compute_intersections_for_line(baseline, sidelines, img, exclude_similar_slope=True)
+        
+        try:
+            segments = detector.find_sidelines_segments(intersections)
+
+        except Exception:
+            continue
+        
         baseline_segments, left_outer_segments, left_inner_segments,right_inner_segments, right_outer_segments = segments
 
 
