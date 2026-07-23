@@ -582,3 +582,25 @@ def create_reference_court(
     cv2.line(ref_img, (left_x, mid_y), (right_x, mid_y), green, line_thickness)
 
     return ref_key_points, ref_img
+
+
+def build_input_for_homography_matrix_from_tennis_court_key_points_models(
+    ref_points_model: TennisCourtKeyPoints,
+    dst_points_model: TennisCourtKeyPoints,
+) -> tuple[np.ndarray, np.ndarray, tuple[str, ...]]:
+    ref_points_dump = ref_points_model.model_dump()
+    dst_points_dump = dst_points_model.model_dump()
+
+    point_names = tuple(
+        name
+        for name in ref_points_dump.keys()
+        if ref_points_dump[name] is not None and dst_points_dump[name] is not None
+    )
+
+    if len(point_names) < 4:
+        raise ValueError("At least 4 matching points are required to compute homography")
+
+    ref_points_arr = np.array([ref_points_dump[name] for name in point_names], dtype=np.float32)
+    dst_points_arr = np.array([dst_points_dump[name] for name in point_names], dtype=np.float32)
+
+    return ref_points_arr, dst_points_arr, point_names
