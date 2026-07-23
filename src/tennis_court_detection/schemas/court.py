@@ -43,14 +43,6 @@ class TennisCourt(TennisModel):
     key_points: TennisCourtKeyPoints
 
 
-class BaselineNeighbourhood(TennisModel):
-    adj_baseline: list[LineSegment]
-    left_outer_intersection: Intersection
-    left_inner_intersection: Intersection
-    right_outer_intersection: Intersection
-    right_inner_intersection: Intersection
-
-
 class HalfLine(TennisModel):
     point: Point
     line: Line
