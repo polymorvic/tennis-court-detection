@@ -4,8 +4,8 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
-from cvgeomkit.geometry.points import Point
-from cvgeomkit.geometry.segments import LineSegment
+from cvgeomkit.geometry.points import Point, transform_point
+from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
@@ -345,16 +345,132 @@ def count_vertical_line_segment_pairs_distances(
 
         ls_pairs_distances.append((ls1, ls2, dist))
 
-    return sorted(ls_pairs_distances, key = lambda item: item[-1])[0]
+    return sorted(ls_pairs_distances, key = lambda item: item[-1])[0] if ls_pairs_distances else None
 
 
+def traverse_vertical_line(
+    img: ArrayLike,
+    start_point: Point,
+    max_tol_iter: int = 5,
+    canny_lower_thresh: int = 20,
+    canny_upper_thresh: int = 100,
+    hough_thresh: int = 10,
+    step_ratio: float = 0.1,
+    kernel_size_ratio: float = 0.025,
+    roi_width_ratio: float = 0.035,
+    roi_height_ratio: float = 0.075,
+    min_line_len_ratio: float = 0.2,
+    max_line_gap_ratio: float = 0.1
+) -> list[list[LineSegment, LineSegment]]:
+    
+    from tennis_court_detection.utils.filters import filter_horizontal_lines
+    
+    roi_width_px = int(roi_width_ratio * img.width)
+    roi_height_px = int(roi_height_ratio * img.height)
+    step_px = int(step_ratio * roi_height_px)
 
+    half_w = roi_width_px // 2
+    half_h = roi_height_px // 10
 
+    current_point = start_point
+    centre_service_line_segments = []
+    tol = 0
+    prev_roi_h = -1
+    while True:
+        x1 = max(0, current_point.x - half_w)
+        x2 = min(img.width, current_point.x + half_w)
 
+        y1 = max(0, current_point.y - roi_height_px)
+        y2 = min(img.height, current_point.y + half_h)
 
+        if prev_roi_h > 0 and abs(prev_roi_h - (y2 - y1)) > 10:
+            return centre_service_line_segments
 
+        roi = img[y1:y2, x1:x2]
+        prev_roi_h = roi.height
 
-def pair_vertical_lines(
-    line_segments: list[LineSegment,]
-):
-    pass
+        if roi.size == 0 or tol >= max_tol_iter:
+            return centre_service_line_segments
+
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+
+        kernel_size_px = int(kernel_size_ratio * roi.height) | 1
+        roi_blur = cv2.medianBlur(roi_gray, kernel_size_px)
+
+        min_line_len_px = int(roi.height * min_line_len_ratio)
+        max_line_gap_px = int(roi.height * max_line_gap_ratio)
+
+        lines = lines_from_gray_img(
+            roi_blur,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_px,
+            max_line_gap_px
+        )
+
+        if not lines:
+            current_point = Point(
+                current_point.x,
+                current_point.y - step_px
+            )
+            tol +=1
+            continue
+
+        v_lines = filter_horizontal_lines(
+            lines,
+            horizontal=False,
+            include_none_slope=True
+        )
+
+        if not v_lines:
+            current_point = Point(
+                current_point.x,
+                current_point.y - step_px
+            )
+            tol +=1
+            continue
+
+        tol = 0
+        limit_points = []
+        segments = []
+        for line in v_lines:
+            p1, p2 = line.limit_to_img(roi)
+            limit_points.extend([p1, p2])
+
+            ls = LineSegment.from_points(p1, p2)
+            segments.append(ls)
+
+        limit_points = sorted(limit_points, key = lambda point: point.y)
+        current_point = transform_point(limit_points[0], x1, y1)
+
+        result = count_vertical_line_segment_pairs_distances(roi, segments)
+
+        if result is None:
+            tol += 1
+            continue
+
+        ls1, ls2, _ = result
+
+        ls1_global = transform_line_segment(ls1, x1, y1)
+        ls2_global = transform_line_segment(ls2, x1, y1)
+
+        sorted_segments = sorted([ls1_global, ls2_global], key = lambda ls: ls.start.x) # sortowanie po x zeby odpowiedni ls byl z odpowiedniej strony
+
+        centre_service_line_segments.append(sorted_segments)
+
+        if get_debug_mode():
+            roi_copy = roi.copy()
+            for line in v_lines:
+                p1, p2 = line.limit_to_img(roi)
+                cv2.line(roi_copy, p1, p2, (255, 0, 0), 1)
+
+            display_img(roi_copy)
+
+            roi_copy = roi.copy()
+            for line in v_lines:
+                cv2.line(roi_copy, ls1.start, ls1.end, (255, 0, 0), 1)
+                cv2.line(roi_copy, ls2.start, ls2.end, (255, 0, 0), 1)
+
+            display_img(roi_copy)
+
