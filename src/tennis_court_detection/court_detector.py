@@ -300,25 +300,58 @@ class CourtDetector:
 
         return pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
 
-    # TODO tutaj pododawac argumenty
+
     def find_service_line(
         self,
-        service_line_candidate: list[tuple[HalfLine, HalfLine]]
+        service_line_candidate: tuple[HalfLine, HalfLine],
+        step_ratio: float = 0.026,
+        height_delta_ratio: float = 0.0186,
+        kernel_size_ratio: float = 0.3,
+        window_size_ratio: float = 0.016,
+        middle_ratio: float = 0.1,
+        x_overlap_ratio: float = 0.3,
+        h_delta_up_ratio: float = 0.028,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 20,
+        min_line_len_ratio: float = 0.2,
+        max_line_gap_ratio: float = 0.1
     ) -> tuple[LineSegment, Intersection] | None:
         hl1, hl2 = service_line_candidate
-        ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
-        intersections = check_is_service_line(self.img, ls)
+        ls = adjust_horizontal_line(self.img, hl1.point, hl2.point, step_ratio, height_delta_ratio)
+        intersections = check_is_service_line(
+            self.img, 
+            ls,
+            kernel_size_ratio,
+            window_size_ratio,
+            middle_ratio,
+            x_overlap_ratio,
+            h_delta_up_ratio,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_ratio,
+            max_line_gap_ratio
+        )
 
         if intersections:
             return ls, intersections
         
 
+    # TODO dodac warunek stopu gdy jest linia horyzontalna
+    # zmniejszych okno w górę - zmiana wartosci argumentu domyslnego
     def find_centre_service_line(
         self,
         intersection_point: Point,
     ) -> list[list[LineSegment, LineSegment]]:
         
         return traverse_vertical_line(self.img, intersection_point)
+
+
+    def find_netline(self):
+        pass
+
+    
         
 
         
