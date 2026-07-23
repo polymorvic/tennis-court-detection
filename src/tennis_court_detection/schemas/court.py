@@ -1,5 +1,8 @@
+import cv2
+import numpy as np
 from pydantic import BaseModel
 
+from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.lines import Line
@@ -22,20 +25,37 @@ class TennisCourtLineSegments(TennisModel):
 
 
 class TennisCourtKeyPoints(TennisModel):
-    left_outer_baseline_point: Point
-    left_inner_baseline_point: Point
-    left_outer_netline_point: Point
-    left_inner_netline_point: Point
-    right_outer_baseline_point: Point
-    right_inner_baseline_point: Point
-    right_outer_netline_point: Point
-    right_inner_netline_point: Point
-    left_service_point: Point
-    right_service_point: Point
-    left_service_netline_point: Point
-    right_service_netline_point: Point
-    left_center_service_point: Point
-    right_center_service_point: Point
+    left_outer_baseline_point: Point | None = None
+    left_inner_baseline_point: Point | None = None
+    left_outer_netline_point: Point | None = None
+    left_inner_netline_point: Point | None = None
+    right_outer_baseline_point: Point | None = None
+    right_inner_baseline_point: Point | None = None
+    right_outer_netline_point: Point | None = None
+    right_inner_netline_point: Point | None = None
+    left_service_point: Point | None = None
+    right_service_point: Point | None = None
+    left_service_netline_point: Point | None = None
+    right_service_netline_point: Point | None = None
+    left_center_service_point: Point | None = None
+    right_center_service_point: Point | None = None
+
+
+    def draw_on_image(
+        self,
+        img: ArrayLike,
+        color: tuple[int, int, int] = (0, 255, 255),
+        radius: int = 8,
+        thickness: int = -1,
+    ) -> np.ndarray:
+        img_copy = img.copy()
+        
+        for point in self.model_dump().values():
+            if point is None:
+                continue
+            cv2.circle(img_copy, (int(point.x), int(point.y)), radius, color, thickness)
+
+        return img_copy
 
 
 class TennisCourt(TennisModel):
