@@ -11,7 +11,14 @@ class TennisModel(BaseModel, arbitrary_types_allowed=True):
 
 
 class TennisCourtLineSegments(TennisModel):
-    pass
+    baseline_segments: list[LineSegment]
+    left_outer_segments: list[LineSegment]
+    left_inner_segments: list[LineSegment]
+    right_outer_segments: list[LineSegment]
+    right_inner_segments: list[LineSegment]
+    service_line_segments: list[LineSegment]
+    centre_service_line_segments: list[LineSegment]
+    netline_segments: list[LineSegment]
 
 
 class TennisCourtKeyPoints(TennisModel):
