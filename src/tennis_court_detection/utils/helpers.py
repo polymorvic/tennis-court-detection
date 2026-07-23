@@ -10,7 +10,8 @@ from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
 from tennis_court_detection.schemas.config import Params, PicsBlacklist, Direction
-from tennis_court_detection.schemas.court import HalfLine
+from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
+from tennis_court_detection.utils.constants import COURT_DIMENSIONS
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
 from tennis_court_detection.config import get_debug_mode
 
@@ -515,3 +516,69 @@ def line_segments_intersections(
                 return intersection
 
     return None
+
+
+def create_reference_court(
+    ref_img_height: int = 25_000, 
+    ref_img_width: int = 11_000, 
+    line_thickness: int = 50
+) -> tuple[TennisCourtKeyPoints, np.ndarray]:
+    dimensions = COURT_DIMENSIONS
+    green = (0, 255, 0)
+    red = (255, 0, 0)
+
+    left_x = 0
+    right_x = dimensions.width
+    inner_left_x = dimensions.dist_outer_sideline
+    inner_right_x = dimensions.width - dimensions.dist_outer_sideline
+    half_x = dimensions.court_width_half
+
+    top_y = 0
+    mid_y = dimensions.court_length_half
+    bottom_y = dimensions.length
+    service_y = dimensions.dist_from_baseline
+    opposite_service_y = dimensions.length - dimensions.dist_from_baseline
+
+    ref_key_points = TennisCourtKeyPoints(
+        left_outer_baseline_point=Point.from_iterable((left_x, top_y)),
+        left_inner_baseline_point=Point.from_iterable((inner_left_x, top_y)),
+        left_outer_netline_point=Point.from_iterable((left_x, mid_y)),
+        left_inner_netline_point=Point.from_iterable((inner_left_x, mid_y)),
+        right_outer_baseline_point=Point.from_iterable((right_x, top_y)),
+        right_inner_baseline_point=Point.from_iterable((inner_right_x, top_y)),
+        right_outer_netline_point=Point.from_iterable((right_x, mid_y)),
+        right_inner_netline_point=Point.from_iterable((inner_right_x, mid_y)),
+        left_service_point=Point.from_iterable((inner_left_x, opposite_service_y)),
+        right_service_point=Point.from_iterable((inner_right_x, opposite_service_y)),
+        left_service_netline_point=Point.from_iterable((inner_left_x, service_y)),
+        right_service_netline_point=Point.from_iterable((inner_right_x, service_y)),
+        left_center_service_point=Point.from_iterable((half_x, opposite_service_y)),
+        right_center_service_point=Point.from_iterable((half_x, service_y)),
+    )
+
+    ref_img = np.zeros((ref_img_height, ref_img_width, 3), np.uint8)
+
+    cv2.line(ref_img, (left_x, top_y), (left_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (left_x, mid_y), (left_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (right_x, top_y), (right_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (right_x, mid_y), (right_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (left_x, top_y), (right_x, top_y), green, line_thickness)
+    cv2.line(ref_img, (left_x, bottom_y), (right_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (inner_left_x, top_y), (inner_left_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (inner_left_x, mid_y), (inner_left_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (inner_right_x, top_y), (inner_right_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (inner_right_x, mid_y), (inner_right_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (inner_left_x, opposite_service_y), (inner_right_x, opposite_service_y), red, line_thickness)
+    cv2.line(ref_img, (inner_left_x, service_y), (inner_right_x, service_y), green, line_thickness)
+
+    cv2.line(ref_img, (half_x, mid_y), (half_x, opposite_service_y), red, line_thickness)
+    cv2.line(ref_img, (half_x, mid_y), (half_x, service_y), green, line_thickness)
+
+    cv2.line(ref_img, (left_x, mid_y), (right_x, mid_y), green, line_thickness)
+
+    return ref_key_points, ref_img
