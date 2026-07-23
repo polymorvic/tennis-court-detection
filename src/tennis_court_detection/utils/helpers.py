@@ -474,3 +474,44 @@ def traverse_vertical_line(
 
             display_img(roi_copy)
 
+
+def point_on_segment(
+    point: Point, 
+    segment: LineSegment, 
+    tol: float = 1.0
+) -> bool:
+    x_min = min(segment.start.x, segment.end.x) - tol
+    x_max = max(segment.start.x, segment.end.x) + tol
+    y_min = min(segment.start.y, segment.end.y) - tol
+    y_max = max(segment.start.y, segment.end.y) + tol
+    return x_min <= point.x <= x_max and y_min <= point.y <= y_max
+    
+
+def line_segments_intersections(
+    segments1: list[LineSegment],
+    segments2: list[LineSegment],
+    img: ArrayLike
+) -> Intersection | None:
+    for i, ls1 in enumerate(segments1):
+        for j, ls2 in enumerate(segments2):
+
+            if segments1 is segments2 and j <= i:
+                continue
+
+            line1 = Line.from_points(ls1.start, ls1.end)
+            line2 = Line.from_points(ls2.start, ls2.end)
+
+            intersection = line1.intersection(line2, img)
+            if intersection is None:
+                continue
+
+            if point_on_segment(intersection.point, ls1) and point_on_segment(intersection.point, ls2):
+                return intersection
+
+            ext_ls1 = LineSegment.from_points(*line1.limit_to_img(img))
+            ext_ls2 = LineSegment.from_points(*line2.limit_to_img(img))
+
+            if point_on_segment(intersection.point, ext_ls1) and point_on_segment(intersection.point, ext_ls2):
+                return intersection
+
+    return None
