@@ -10,6 +10,32 @@ class TennisModel(BaseModel, arbitrary_types_allowed=True):
     pass
 
 
+class TennisCourtLineSegments(TennisModel):
+    pass
+
+
+class TennisCourtKeyPoints(TennisModel):
+    left_outer_baseline_point: Point
+    left_inner_baseline_point: Point
+    left_outer_netline_point: Point
+    left_inner_netline_point: Point
+    right_outer_baseline_point: Point
+    right_inner_baseline_point: Point
+    right_outer_netline_point: Point
+    right_inner_netline_point: Point
+    left_service_point: Point
+    right_service_point: Point
+    left_service_netline_point: Point
+    right_service_netline_point: Point
+    left_center_service_point: Point
+    right_center_service_point: Point
+
+
+class TennisCourt(TennisModel):
+    segments: TennisCourtLineSegments
+    key_points: TennisCourtKeyPoints
+
+
 class BaselineNeighbourhood(TennisModel):
     adj_baseline: list[LineSegment]
     left_outer_intersection: Intersection
