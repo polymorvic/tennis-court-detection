@@ -3,7 +3,7 @@ import numpy as np
 from cvgeomkit.common import ArrayLike, NumpyImage
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.geometry.lines import transform_line, Line
-from cvgeomkit.geometry.points import transform_point
+from cvgeomkit.geometry.points import transform_point, Point
 from cvgeomkit.geometry.intersections import compute_intersections, Intersection, transform_intersection
 from cvgeomkit.geometry.segments import LineSegment
 
@@ -17,7 +17,8 @@ from tennis_court_detection.utils.helpers import (
     angle_between_lines,
     get_point_from_segments_by_point_y,
     pair_horizontal_lines,
-    get_center_point_from_2_half_lines
+    get_center_point_from_2_half_lines,
+    traverse_vertical_line
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -299,19 +300,28 @@ class CourtDetector:
 
         return pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
 
-
-    def find_service_line_and_centre_service_line(
+    # TODO tutaj pododawac argumenty
+    def find_service_line(
         self,
-        paired_half_lines: list[tuple[HalfLine, HalfLine]]
+        service_line_candidate: list[tuple[HalfLine, HalfLine]]
     ) -> tuple[LineSegment, Intersection] | None:
+        hl1, hl2 = service_line_candidate
+        ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
+        intersections = check_is_service_line(self.img, ls)
+
+        if intersections:
+            return ls, intersections
         
-        for hl1, hl2 in paired_half_lines:
 
-            ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
-            intersections = check_is_service_line(self.img, ls)
+    def find_centre_service_line(
+        self,
+        intersection_point: Point,
+    ) -> list[list[LineSegment, LineSegment]]:
+        
+        return traverse_vertical_line(self.img, intersection_point)
+        
 
-            if intersections:
-                return ls, intersections
+        
 
         
 
