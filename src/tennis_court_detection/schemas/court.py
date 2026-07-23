@@ -41,6 +41,26 @@ class TennisCourtKeyPoints(TennisModel):
     right_center_service_point: Point | None = None
 
 
+    @classmethod
+    def from_matrix(cls, matrix: np.ndarray) -> "TennisCourtKeyPoints":
+        return cls(
+            left_outer_baseline_point=Point.from_iterable(matrix[0]),
+            left_inner_baseline_point=Point.from_iterable(matrix[1]),
+            left_outer_netline_point=Point.from_iterable(matrix[2]),
+            left_inner_netline_point=Point.from_iterable(matrix[3]),
+            right_outer_baseline_point=Point.from_iterable(matrix[4]),
+            right_inner_baseline_point=Point.from_iterable(matrix[5]),
+            right_outer_netline_point=Point.from_iterable(matrix[6]),
+            right_inner_netline_point=Point.from_iterable(matrix[7]),
+            left_service_point=Point.from_iterable(matrix[8]),
+            right_service_point=Point.from_iterable(matrix[9]),
+            left_service_netline_point=Point.from_iterable(matrix[10]),
+            right_service_netline_point=Point.from_iterable(matrix[11]),
+            left_center_service_point=Point.from_iterable(matrix[12]),
+            right_center_service_point=Point.from_iterable(matrix[13]),
+        )
+
+
     def draw_on_image(
         self,
         img: ArrayLike,
