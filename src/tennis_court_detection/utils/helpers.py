@@ -351,6 +351,41 @@ def count_vertical_line_segment_pairs_distances(
     return sorted(ls_pairs_distances, key = lambda item: item[-1])[0] if ls_pairs_distances else None
 
 
+def pair_2_vertical_lines_by_distance(
+    img: ArrayLike,
+    v_lines: list[Line],
+    min_v_lines_spread_ratio: float = 0.05,
+) -> tuple[Line, Line, float | int] | None:
+    pairs = []
+    min_v_lines_spread_px = int(img.width * min_v_lines_spread_ratio)
+    for l1, l2 in combinations(v_lines, 2):
+
+        p1_top, p1_bottom = sorted(l1.limit_to_img(img), key=lambda point: point.y)
+        p2_top, p2_bottom = sorted(l2.limit_to_img(img), key=lambda point: point.y,)
+
+        diff_start = abs(p1_top.x - p2_top.x)
+        diff_end = abs(p1_bottom.x - p2_bottom.x)
+
+        if diff_start != diff_end:
+            continue
+
+        if l1.intersection(l2, img):
+            continue
+
+        if diff_start < min_v_lines_spread_px or diff_end < min_v_lines_spread_px:
+            continue
+
+        pairs.append((l1, l2, diff_start))
+
+    if not pairs:
+        return None
+
+    l1, l2, dist = sorted(pairs, key=lambda item: item[-1])[0]
+    l1, l2 = sorted((l1, l2), key=lambda line: line.xv)
+
+    return l1, l2, dist
+
+
 def traverse_vertical_line(
     img: ArrayLike,
     start_point: Point,
@@ -617,3 +652,17 @@ def build_input_for_homography_matrix_from_tennis_court_key_points_models(
     dst_points_arr = np.array([dst_points_dump[name] for name in point_names], dtype=np.float32)
 
     return ref_points_arr, dst_points_arr, point_names
+
+
+def line_and_line_segments_intersections(
+    line: Line,
+    segments: list[LineSegment],
+    img: ArrayLike
+) -> list[Intersection]:
+    intersections = []
+    for segment in segments:
+        segment_line = Line.from_points(segment.start, segment.end)
+        intersection = line.intersection(segment_line, img)
+        if intersection is not None and point_on_segment(intersection.point, segment):
+            intersections.append(intersection)
+    return intersections[0] if intersections else None

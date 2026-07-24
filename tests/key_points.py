@@ -102,15 +102,13 @@ def run(
         service_line_segments, inters = result
 
         try:
-            centre_service_line_segments = detector.find_centre_service_line(inters[0].point)
+            centre_service_half_lines = detector.find_centre_service_half_lines(inters[0].point)
         except Exception:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
-        if not centre_service_line_segments:
+        if not centre_service_half_lines:
             continue
-
-        centre_service_line_segments = sum(centre_service_line_segments, [])
 
         try:
             net_line_segments = detector.find_netline(
@@ -128,11 +126,16 @@ def run(
         if not net_line_segments:
             continue
 
+        left_centre_service_line_segments, right_centre_service_line_segments = detector.centre_service_half_lines_to_segments(
+            centre_service_half_lines,
+            net_line_segments
+        )
+
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 
                         left_inner_segments, right_inner_segments, right_outer_segments,
-                        service_line_segments, centre_service_line_segments, net_line_segments]:
-
+                        service_line_segments, left_centre_service_line_segments, 
+                        right_centre_service_line_segments, net_line_segments]:
             for segment in segments:
                 cv2.line(img_copy, segment.start, segment.end, (255, 0, 0), 1)
 
