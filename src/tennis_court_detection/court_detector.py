@@ -348,9 +348,34 @@ class CourtDetector:
     def find_centre_service_line(
         self,
         intersection_point: Point,
+        max_tol_iter: int = 5,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 10,
+        step_ratio: float = 0.1,
+        kernel_size_ratio: float = 0.025,
+        roi_width_ratio: float = 0.035,
+        roi_height_ratio: float = 0.075,
+        min_line_len_ratio: float = 0.2,
+        max_line_gap_ratio: float = 0.1,
+        min_v_lines_spread_ratio: float = 0.05
     ) -> list[list[LineSegment, LineSegment]]:
         
-        return traverse_vertical_line(self.img, intersection_point)
+        return traverse_vertical_line(
+            self.img, 
+            intersection_point,
+            max_tol_iter,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            step_ratio,
+            kernel_size_ratio,
+            roi_width_ratio,
+            roi_height_ratio,
+            min_line_len_ratio,
+            max_line_gap_ratio,
+            min_v_lines_spread_ratio
+        )
 
 
     def find_netline(

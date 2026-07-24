@@ -322,13 +322,15 @@ def order_ls_points(
 def count_vertical_line_segment_pairs_distances(
     img: ArrayLike,
     line_segments: list[LineSegment],
+    min_v_lines_spread_ratio: float = 0.05,
 ) -> tuple[LineSegment, LineSegment, int | float]:
     ls_pairs_distances = []
     for ls1, ls2 in combinations(line_segments, 2):
         top1, bottom1 = order_ls_points(ls1)
         top2, bottom2 = order_ls_points(ls2)
 
-        if abs(top1.x - top2.x) < 2 or abs(bottom1.x - bottom2.x) < 2:
+        min_v_lines_spread_px = int(img.width * min_v_lines_spread_ratio)
+        if abs(top1.x - top2.x) < min_v_lines_spread_px or abs(bottom1.x - bottom2.x) < min_v_lines_spread_px:
             continue
 
         line1 = Line.from_points(top1, bottom1)
@@ -361,7 +363,8 @@ def traverse_vertical_line(
     roi_width_ratio: float = 0.035,
     roi_height_ratio: float = 0.075,
     min_line_len_ratio: float = 0.2,
-    max_line_gap_ratio: float = 0.1
+    max_line_gap_ratio: float = 0.1,
+    min_v_lines_spread_ratio: float = 0.05
 ) -> list[list[LineSegment, LineSegment]]:
     
     from tennis_court_detection.utils.filters import filter_horizontal_lines
@@ -445,7 +448,7 @@ def traverse_vertical_line(
         limit_points = sorted(limit_points, key = lambda point: point.y)
         current_point = transform_point(limit_points[0], x1, y1)
 
-        result = count_vertical_line_segment_pairs_distances(roi, segments)
+        result = count_vertical_line_segment_pairs_distances(roi, segments, min_v_lines_spread_ratio)
 
         if result is None:
             tol += 1
