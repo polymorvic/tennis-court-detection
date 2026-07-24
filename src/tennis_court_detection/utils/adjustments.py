@@ -438,3 +438,134 @@ def scan_line_segments_for_horizontal_lines(
             cv2.rectangle(img_copy, (min_x, min_y), (int(max_x + roi_window_width_ratio*img_copy.width), max_y), (255, 0, 0), 3)
 
     return sorted(half_lines, key=lambda half_line: half_line.line.intercept)
+
+
+def traverse_for_bottom_netline(
+    img: np.ndarray,
+    p_left: Point,
+    p_right: Point,
+    direction: Direction,
+    step_ratio: float = 0.015,
+    h_delta_ratio: float = 0.0186,
+    canny_lower_thresh: int = 50,
+    canny_upper_thresh: int = 150,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.2,
+    max_line_gap_ratio: float = 0.1
+) -> tuple[list[Line], list[tuple[int, int]]]:
+    img = check_if_numpy_image(img)
+    p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
+    step = int(img.width * step_ratio)
+    h_delta = int(img.height * h_delta_ratio)
+
+    if direction == Direction.LEFT:
+        x1 = p_c.x - step
+        x2 = p_c.x
+    else:
+        x1 = p_c.x 
+        x2 = p_c.x + step
+        
+    img_copy = img.copy()
+    img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    lines = []
+    segment_xs = []
+    while {'left': x2 > p_left.x, 'right': x1 < p_right.x}[direction]:
+
+        crop = img[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
+        crop_gray = img_gray[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
+        crop_gray = cv2.bilateralFilter(crop_gray, 5, 75, 75)
+
+        crop_bin = (crop_gray < crop_gray.min() + crop_gray.std()).astype(np.uint8) * 255
+        edges = cv2.Canny(crop_bin, canny_lower_thresh, canny_upper_thresh)
+
+        hough_thresh = int(crop.width * hough_thresh_ratio)
+        min_line_len_px = int(crop.width * min_line_len_ratio)
+        max_line_gap_px = int(crop.width * max_line_gap_ratio)
+        segments = cv2.HoughLinesP(
+            edges, 
+            rho = 1, 
+            theta = np.pi / 180,
+            threshold = hough_thresh, 
+            minLineLength=min_line_len_px,
+            maxLineGap=max_line_gap_px
+        )
+
+        if get_debug_mode():
+            display_img(crop)
+            display_img(crop_gray)
+            display_img(crop_bin)
+            display_img(edges)
+
+        crop_copy = crop.copy()
+        sub_lines = []
+        if segments is not None:
+            for line in segments:
+
+                if get_debug_mode():
+                    x1_hough, y1_hough, x2_hough, y2_hough = line[0]
+                    cv2.line(crop_copy, (x1_hough, y1_hough), (x2_hough, y2_hough), (0, 255, 0), 1)
+
+                line = Line.from_hough_segment(line[0])
+                sub_lines.append(line)
+        
+        sub_lines = filter_horizontal_lines(sub_lines)
+        if sub_lines:
+            bottom_line = sorted(sub_lines, key = lambda line: line.intercept)[-1]
+            bottom_line_global = transform_line(bottom_line, crop, x1, p_c.y - h_delta)
+            lines.append(bottom_line_global)
+        else:
+            lines.append(None)
+
+
+        segment_xs.append((min(x1, x2), max(x1, x2)))
+
+        if get_debug_mode():
+            display_img(crop_copy)
+            cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
+    
+        if direction == Direction.LEFT:
+            x2 = x1
+            x1 -= step
+            
+        else:
+            x1 = x2
+            x2 += step
+
+
+    if exceeds_empty_threshold(lines):
+        raise NotEnoughLineSegmentsFound()
+
+    interpolated_lines = interpolate_lines_intercept(lines)
+
+    if get_debug_mode():
+        print(f'before adjust: {interpolated_lines=}')
+        print(f'after adjust: {interpolated_lines=}')
+        display_img(crop_copy)
+        cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
+        display_img(img_copy)
+
+    return interpolated_lines, segment_xs
+
+
+def adjust_net_line_segments(
+    img: ArrayLike,
+    left_point: Point,
+    right_point: Point,
+    step_ratio: float = 0.015,
+    height_delta_ratio: float = 0.0186
+) -> list[LineSegment]:
+    lines_left, xs_left = traverse_for_bottom_netline(
+        img, left_point, right_point, Direction.LEFT,
+        step_ratio, height_delta_ratio
+    )
+    lines_right, xs_right = traverse_for_bottom_netline(
+        img, left_point, right_point, Direction.RIGHT,
+        step_ratio, height_delta_ratio
+    )
+
+    pairs = list(zip(lines_left + lines_right, xs_left + xs_right))
+    pairs.sort(key=lambda p: (p[1][0] + p[1][1]) / 2)
+    lines, segment_xs = map(list, zip(*pairs))
+    lines = adjust_lines_intercept(lines)
+    return build_segments(lines, segment_xs)

@@ -10,7 +10,8 @@ from cvgeomkit.geometry.intersections import Intersection
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
 from tennis_court_detection.schemas.config import Params, PicsBlacklist, Direction
-from tennis_court_detection.schemas.court import HalfLine
+from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
+from tennis_court_detection.utils.constants import COURT_DIMENSIONS
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
 from tennis_court_detection.config import get_debug_mode
 
@@ -474,3 +475,132 @@ def traverse_vertical_line(
 
             display_img(roi_copy)
 
+
+def point_on_segment(
+    point: Point, 
+    segment: LineSegment, 
+    tol: float = 1.0
+) -> bool:
+    x_min = min(segment.start.x, segment.end.x) - tol
+    x_max = max(segment.start.x, segment.end.x) + tol
+    y_min = min(segment.start.y, segment.end.y) - tol
+    y_max = max(segment.start.y, segment.end.y) + tol
+    return x_min <= point.x <= x_max and y_min <= point.y <= y_max
+    
+
+def line_segments_intersections(
+    segments1: list[LineSegment],
+    segments2: list[LineSegment],
+    img: ArrayLike
+) -> Intersection | None:
+    for i, ls1 in enumerate(segments1):
+        for j, ls2 in enumerate(segments2):
+
+            if segments1 is segments2 and j <= i:
+                continue
+
+            line1 = Line.from_points(ls1.start, ls1.end)
+            line2 = Line.from_points(ls2.start, ls2.end)
+
+            intersection = line1.intersection(line2, img)
+            if intersection is None:
+                continue
+
+            if point_on_segment(intersection.point, ls1) and point_on_segment(intersection.point, ls2):
+                return intersection
+
+            ext_ls1 = LineSegment.from_points(*line1.limit_to_img(img))
+            ext_ls2 = LineSegment.from_points(*line2.limit_to_img(img))
+
+            if point_on_segment(intersection.point, ext_ls1) and point_on_segment(intersection.point, ext_ls2):
+                return intersection
+
+    return None
+
+
+def create_reference_court(
+    ref_img_height: int = 25_000, 
+    ref_img_width: int = 11_000, 
+    line_thickness: int = 50
+) -> tuple[TennisCourtKeyPoints, np.ndarray]:
+    dimensions = COURT_DIMENSIONS
+    green = (0, 255, 0)
+    red = (255, 0, 0)
+
+    left_x = 0
+    right_x = dimensions.width
+    inner_left_x = dimensions.dist_outer_sideline
+    inner_right_x = dimensions.width - dimensions.dist_outer_sideline
+    half_x = dimensions.court_width_half
+
+    top_y = 0
+    mid_y = dimensions.court_length_half
+    bottom_y = dimensions.length
+    service_y = dimensions.dist_from_baseline
+    opposite_service_y = dimensions.length - dimensions.dist_from_baseline
+
+    ref_key_points = TennisCourtKeyPoints(
+        left_outer_baseline_point=Point.from_iterable((left_x, top_y)),
+        left_inner_baseline_point=Point.from_iterable((inner_left_x, top_y)),
+        left_outer_netline_point=Point.from_iterable((left_x, mid_y)),
+        left_inner_netline_point=Point.from_iterable((inner_left_x, mid_y)),
+        right_outer_baseline_point=Point.from_iterable((right_x, top_y)),
+        right_inner_baseline_point=Point.from_iterable((inner_right_x, top_y)),
+        right_outer_netline_point=Point.from_iterable((right_x, mid_y)),
+        right_inner_netline_point=Point.from_iterable((inner_right_x, mid_y)),
+        left_service_point=Point.from_iterable((inner_left_x, service_y)),
+        right_service_point=Point.from_iterable((inner_right_x, service_y)),
+        left_service_netline_point=Point.from_iterable((inner_left_x, opposite_service_y)),
+        right_service_netline_point=Point.from_iterable((inner_right_x, opposite_service_y)),
+        left_center_service_point=Point.from_iterable((half_x, opposite_service_y)),
+        right_center_service_point=Point.from_iterable((half_x, service_y)),
+    )
+
+    ref_img = np.zeros((ref_img_height, ref_img_width, 3), np.uint8)
+
+    cv2.line(ref_img, (left_x, top_y), (left_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (left_x, mid_y), (left_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (right_x, top_y), (right_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (right_x, mid_y), (right_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (left_x, top_y), (right_x, top_y), green, line_thickness)
+    cv2.line(ref_img, (left_x, bottom_y), (right_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (inner_left_x, top_y), (inner_left_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (inner_left_x, mid_y), (inner_left_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (inner_right_x, top_y), (inner_right_x, mid_y), green, line_thickness)
+    cv2.line(ref_img, (inner_right_x, mid_y), (inner_right_x, bottom_y), red, line_thickness)
+
+    cv2.line(ref_img, (inner_left_x, opposite_service_y), (inner_right_x, opposite_service_y), red, line_thickness)
+    cv2.line(ref_img, (inner_left_x, service_y), (inner_right_x, service_y), green, line_thickness)
+
+    cv2.line(ref_img, (half_x, mid_y), (half_x, opposite_service_y), red, line_thickness)
+    cv2.line(ref_img, (half_x, mid_y), (half_x, service_y), green, line_thickness)
+
+    cv2.line(ref_img, (left_x, mid_y), (right_x, mid_y), green, line_thickness)
+
+    return ref_key_points, ref_img
+
+
+def build_input_for_homography_matrix_from_tennis_court_key_points_models(
+    ref_points_model: TennisCourtKeyPoints,
+    dst_points_model: TennisCourtKeyPoints,
+) -> tuple[np.ndarray, np.ndarray, tuple[str, ...]]:
+    ref_points_dump = ref_points_model.model_dump()
+    dst_points_dump = dst_points_model.model_dump()
+
+    point_names = tuple(
+        name
+        for name in ref_points_dump.keys()
+        if ref_points_dump[name] is not None and dst_points_dump[name] is not None
+    )
+
+    if len(point_names) < 4:
+        raise ValueError("At least 4 matching points are required to compute homography")
+
+    ref_points_arr = np.array([ref_points_dump[name] for name in point_names], dtype=np.float32)
+    dst_points_arr = np.array([dst_points_dump[name] for name in point_names], dtype=np.float32)
+
+    return ref_points_arr, dst_points_arr, point_names

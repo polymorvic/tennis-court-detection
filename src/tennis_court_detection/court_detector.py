@@ -9,7 +9,8 @@ from cvgeomkit.geometry.segments import LineSegment
 
 from tennis_court_detection.schemas.config import ServiceSide, Surface, Direction
 from tennis_court_detection.utils.helpers import (
-    crop_center_img, 
+    crop_center_img,
+    line_segments_intersections, 
     lines_from_gray_img,
     get_next_intersection_by_margin, 
     get_boundary_horizontal_intercection,
@@ -18,7 +19,9 @@ from tennis_court_detection.utils.helpers import (
     get_point_from_segments_by_point_y,
     pair_horizontal_lines,
     get_center_point_from_2_half_lines,
-    traverse_vertical_line
+    traverse_vertical_line,
+    create_reference_court,
+    build_input_for_homography_matrix_from_tennis_court_key_points_models
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -28,12 +31,13 @@ from tennis_court_detection.utils.filters import (
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
     adjust_horizontal_line,
+    adjust_net_line_segments,
     traverse_sideline,
     scan_line_segments_for_horizontal_lines,
     traverse_horizontal_line
 )
 from tennis_court_detection.config import get_debug_mode
-from tennis_court_detection.schemas.court import HalfLine
+from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
 
 
 class CourtDetector:
@@ -300,28 +304,111 @@ class CourtDetector:
 
         return pair_horizontal_lines(self.img, near_line_tol_ratio, left_h_lines, right_h_lines)[::-1]
 
-    # TODO tutaj pododawac argumenty
+
     def find_service_line(
         self,
-        service_line_candidate: list[tuple[HalfLine, HalfLine]]
+        service_line_candidate: tuple[HalfLine, HalfLine],
+        step_ratio: float = 0.026,
+        height_delta_ratio: float = 0.0186,
+        kernel_size_ratio: float = 0.3,
+        window_size_ratio: float = 0.016,
+        middle_ratio: float = 0.1,
+        x_overlap_ratio: float = 0.3,
+        h_delta_up_ratio: float = 0.028,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 20,
+        min_line_len_ratio: float = 0.2,
+        max_line_gap_ratio: float = 0.1
     ) -> tuple[LineSegment, Intersection] | None:
         hl1, hl2 = service_line_candidate
-        ls = adjust_horizontal_line(self.img, hl1.point, hl2.point)
-        intersections = check_is_service_line(self.img, ls)
+        ls = adjust_horizontal_line(self.img, hl1.point, hl2.point, step_ratio, height_delta_ratio)
+        intersections = check_is_service_line(
+            self.img, 
+            ls,
+            kernel_size_ratio,
+            window_size_ratio,
+            middle_ratio,
+            x_overlap_ratio,
+            h_delta_up_ratio,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_ratio,
+            max_line_gap_ratio
+        )
 
         if intersections:
             return ls, intersections
         
 
+    # TODO dodac warunek stopu gdy jest linia horyzontalna
+    # zmniejszych okno w górę - zmiana wartosci argumentu domyslnego
+    # szerokosc linii jakoratio szerokosci a nie jako px
     def find_centre_service_line(
         self,
         intersection_point: Point,
     ) -> list[list[LineSegment, LineSegment]]:
         
         return traverse_vertical_line(self.img, intersection_point)
-        
 
-        
+
+    def find_netline(
+        self,
+        baseline_segments: list[LineSegment],
+        left_outer_segments: list[LineSegment],
+        left_inner_segments: list[LineSegment],
+        right_inner_segments: list[LineSegment],
+        right_outer_segments: list[LineSegment],
+        service_line_segments: list[LineSegment]
+    ) -> TennisCourtKeyPoints | None:
+        intersections = {
+            "left_outer_baseline_point": line_segments_intersections(baseline_segments, left_outer_segments, self.img),
+            "left_inner_baseline_point": line_segments_intersections(baseline_segments, left_inner_segments, self.img),
+            "right_inner_baseline_point": line_segments_intersections(baseline_segments, right_inner_segments, self.img),
+            "right_outer_baseline_point": line_segments_intersections(baseline_segments, right_outer_segments, self.img),
+            "left_service_point": line_segments_intersections(left_inner_segments, service_line_segments, self.img),
+            "right_service_point": line_segments_intersections(right_inner_segments, service_line_segments, self.img),
+        }
+
+        if any(intersection is None for intersection in intersections.values()):
+            return None
+
+        court = TennisCourtKeyPoints(**{name: intersection.point for name, intersection in intersections.items()})
+        ref_court, _ = create_reference_court()
+
+
+        ref_points_arr, dst_points_arr, _ = build_input_for_homography_matrix_from_tennis_court_key_points_models(ref_court, court)
+
+        H, _ = cv2.findHomography(ref_points_arr, dst_points_arr)
+        if H is None:
+            return None
+
+        all_ref_points_arr = np.array([point for point in ref_court.model_dump().values()], dtype=np.float32)
+        transformed_points = cv2.perspectiveTransform(all_ref_points_arr.reshape(-1, 1, 2), H)
+
+        transformed_points = transformed_points.squeeze().astype(int)
+
+        transformed_court = TennisCourtKeyPoints.from_matrix(transformed_points)
+
+        raw_netline_points = [transformed_court.left_outer_netline_point, 
+                              transformed_court.left_inner_netline_point, 
+                              transformed_court.right_inner_netline_point, 
+                              transformed_court.right_outer_netline_point]
+
+        if get_debug_mode():
+            img_copy = self.img.copy()
+            for point in raw_netline_points:
+                cv2.circle(img_copy, point, 2, (0, 255, 0), -1)
+            display_img(img_copy)
+
+        return adjust_net_line_segments(
+            self.img, 
+            transformed_court.left_outer_netline_point, 
+            transformed_court.right_outer_netline_point,
+        )
+
+
 
         
 
