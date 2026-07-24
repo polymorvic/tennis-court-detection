@@ -351,6 +351,35 @@ def count_vertical_line_segment_pairs_distances(
     return sorted(ls_pairs_distances, key = lambda item: item[-1])[0] if ls_pairs_distances else None
 
 
+def pair_2_vertical_lines_by_distance(
+    img: ArrayLike,
+    v_lines: list[Line],
+    min_v_lines_spread_ratio: float = 0.05,
+) -> tuple[Line, Line, float | int] | None:
+    pairs = []
+    min_v_lines_spread_px = int(img.width * min_v_lines_spread_ratio)
+    for l1, l2 in combinations(v_lines, 2):
+
+        p1_top, p1_bottom = sorted(l1.limit_to_img(img), key=lambda point: point.y)
+        p2_top, p2_bottom = sorted(l2.limit_to_img(img), key=lambda point: point.y,)
+
+        diff_start = abs(p1_top.x - p2_top.x)
+        diff_end = abs(p1_bottom.x - p2_bottom.x)
+
+        if diff_start != diff_end:
+            continue
+
+        if l1.intersection(l2, img):
+            continue
+
+        if diff_start < min_v_lines_spread_px or diff_end < min_v_lines_spread_px:
+            continue
+
+        pairs.append((l1, l2, diff_start))
+
+    return sorted(pairs, key=lambda item: item[-1])[0] if pairs else None
+
+
 def traverse_vertical_line(
     img: ArrayLike,
     start_point: Point,
