@@ -6,7 +6,7 @@ from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
 from cvgeomkit.geometry.points import Point, transform_point
 from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
-from cvgeomkit.geometry.intersections import Intersection
+from cvgeomkit.geometry.intersections import Intersection, compute_intersections
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
 from tennis_court_detection.schemas.config import Params, PicsBlacklist, Direction
@@ -360,11 +360,11 @@ def traverse_vertical_line(
     hough_thresh: int = 10,
     step_ratio: float = 0.1,
     kernel_size_ratio: float = 0.025,
-    roi_width_ratio: float = 0.035,
-    roi_height_ratio: float = 0.075,
+    roi_width_ratio: float = 0.025,
+    roi_height_ratio: float = 0.05,
     min_line_len_ratio: float = 0.2,
     max_line_gap_ratio: float = 0.1,
-    min_v_lines_spread_ratio: float = 0.05
+    min_v_lines_spread_ratio: float = 0.075
 ) -> list[list[LineSegment, LineSegment]]:
     
     from tennis_court_detection.utils.filters import filter_horizontal_lines
@@ -380,6 +380,7 @@ def traverse_vertical_line(
     centre_service_line_segments = []
     tol = 0
     prev_roi_h = -1
+    i = 0
     while True:
         x1 = max(0, current_point.x - half_w)
         x2 = min(img.width, current_point.x + half_w)
@@ -419,13 +420,10 @@ def traverse_vertical_line(
                 current_point.y - step_px
             )
             tol +=1
+            i += 1
             continue
 
-        v_lines = filter_horizontal_lines(
-            lines,
-            horizontal=False,
-            include_none_slope=True
-        )
+        v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
 
         if not v_lines:
             current_point = Point(
@@ -433,6 +431,7 @@ def traverse_vertical_line(
                 current_point.y - step_px
             )
             tol +=1
+            i += 1
             continue
 
         tol = 0
@@ -478,7 +477,18 @@ def traverse_vertical_line(
 
             display_img(roi_copy)
 
+        if i == 0:
+            i += 1
+            continue
 
+        intersections = set(compute_intersections(lines, roi))
+        for inter in intersections:
+            if 88 <= inter.angle <= 92 or 268 <= inter.angle <= 272:
+                return centre_service_line_segments
+
+        i += 1
+
+                 
 def point_on_segment(
     point: Point, 
     segment: LineSegment, 
