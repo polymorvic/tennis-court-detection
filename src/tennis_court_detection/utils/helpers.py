@@ -380,8 +380,8 @@ def pair_2_vertical_lines_by_distance(
     if not pairs:
         return None
 
-    l1, l2, dist = min(pairs, key=lambda item: item[-1])
-    l1, l2 = sorted((l1, l2), key=lambda line: line.intercept)
+    l1, l2, dist = sorted(pairs, key=lambda item: item[-1])[0]
+    l1, l2 = sorted((l1, l2), key=lambda line: line.xv)
 
     return l1, l2, dist
 
