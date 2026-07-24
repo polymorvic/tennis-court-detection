@@ -377,7 +377,13 @@ def pair_2_vertical_lines_by_distance(
 
         pairs.append((l1, l2, diff_start))
 
-    return sorted(pairs, key=lambda item: item[-1])[0] if pairs else None
+    if not pairs:
+        return None
+
+    l1, l2, dist = min(pairs, key=lambda item: item[-1])
+    l1, l2 = sorted((l1, l2), key=lambda line: line.intercept)
+
+    return l1, l2, dist
 
 
 def traverse_vertical_line(
