@@ -92,3 +92,16 @@ class HalfLine(TennisModel):
     
     def __eq__(self, other):
         return self.line == other.line
+
+    def draw_on_image(
+        self, 
+        img: ArrayLike, 
+        radius: int = 2,
+        color: tuple[int, int, int] = (0, 255, 255), 
+        thickness: int = 1
+    ) -> np.ndarray:
+        img_copy = img.copy()
+        p1, p2 = self.line.limit_to_img(img_copy)
+        cv2.circle(img_copy, self.point, radius, color, thickness)
+        cv2.line(img_copy, p1, p2, color, thickness)
+        return img_copy
