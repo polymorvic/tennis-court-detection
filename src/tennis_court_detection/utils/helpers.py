@@ -652,3 +652,17 @@ def build_input_for_homography_matrix_from_tennis_court_key_points_models(
     dst_points_arr = np.array([dst_points_dump[name] for name in point_names], dtype=np.float32)
 
     return ref_points_arr, dst_points_arr, point_names
+
+
+def line_and_line_segments_intersections(
+    line: Line,
+    segments: list[LineSegment],
+    img: ArrayLike
+) -> list[Intersection]:
+    intersections = []
+    for segment in segments:
+        segment_line = Line.from_points(segment.start, segment.end)
+        intersection = line.intersection(segment_line, img)
+        if intersection is not None and point_on_segment(intersection.point, segment):
+            intersections.append(intersection)
+    return intersections[0] if intersections else None
