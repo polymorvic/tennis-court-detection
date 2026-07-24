@@ -6,7 +6,7 @@ from cvgeomkit.common import ArrayLike
 from cvgeomkit.geometry.lines import Line
 from cvgeomkit.geometry.points import Point, transform_point
 from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
-from cvgeomkit.geometry.intersections import Intersection
+from cvgeomkit.geometry.intersections import Intersection, compute_intersections
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
 from tennis_court_detection.schemas.config import Params, PicsBlacklist, Direction
@@ -322,13 +322,15 @@ def order_ls_points(
 def count_vertical_line_segment_pairs_distances(
     img: ArrayLike,
     line_segments: list[LineSegment],
+    min_v_lines_spread_ratio: float = 0.05,
 ) -> tuple[LineSegment, LineSegment, int | float]:
     ls_pairs_distances = []
     for ls1, ls2 in combinations(line_segments, 2):
         top1, bottom1 = order_ls_points(ls1)
         top2, bottom2 = order_ls_points(ls2)
 
-        if abs(top1.x - top2.x) < 2 or abs(bottom1.x - bottom2.x) < 2:
+        min_v_lines_spread_px = int(img.width * min_v_lines_spread_ratio)
+        if abs(top1.x - top2.x) < min_v_lines_spread_px or abs(bottom1.x - bottom2.x) < min_v_lines_spread_px:
             continue
 
         line1 = Line.from_points(top1, bottom1)
@@ -358,10 +360,11 @@ def traverse_vertical_line(
     hough_thresh: int = 10,
     step_ratio: float = 0.1,
     kernel_size_ratio: float = 0.025,
-    roi_width_ratio: float = 0.035,
-    roi_height_ratio: float = 0.075,
+    roi_width_ratio: float = 0.025,
+    roi_height_ratio: float = 0.05,
     min_line_len_ratio: float = 0.2,
-    max_line_gap_ratio: float = 0.1
+    max_line_gap_ratio: float = 0.1,
+    min_v_lines_spread_ratio: float = 0.075
 ) -> list[list[LineSegment, LineSegment]]:
     
     from tennis_court_detection.utils.filters import filter_horizontal_lines
@@ -377,6 +380,7 @@ def traverse_vertical_line(
     centre_service_line_segments = []
     tol = 0
     prev_roi_h = -1
+    i = 0
     while True:
         x1 = max(0, current_point.x - half_w)
         x2 = min(img.width, current_point.x + half_w)
@@ -416,13 +420,10 @@ def traverse_vertical_line(
                 current_point.y - step_px
             )
             tol +=1
+            i += 1
             continue
 
-        v_lines = filter_horizontal_lines(
-            lines,
-            horizontal=False,
-            include_none_slope=True
-        )
+        v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
 
         if not v_lines:
             current_point = Point(
@@ -430,6 +431,7 @@ def traverse_vertical_line(
                 current_point.y - step_px
             )
             tol +=1
+            i += 1
             continue
 
         tol = 0
@@ -445,7 +447,7 @@ def traverse_vertical_line(
         limit_points = sorted(limit_points, key = lambda point: point.y)
         current_point = transform_point(limit_points[0], x1, y1)
 
-        result = count_vertical_line_segment_pairs_distances(roi, segments)
+        result = count_vertical_line_segment_pairs_distances(roi, segments, min_v_lines_spread_ratio)
 
         if result is None:
             tol += 1
@@ -475,7 +477,18 @@ def traverse_vertical_line(
 
             display_img(roi_copy)
 
+        if i == 0:
+            i += 1
+            continue
 
+        intersections = set(compute_intersections(lines, roi))
+        for inter in intersections:
+            if 88 <= inter.angle <= 92 or 268 <= inter.angle <= 272:
+                return centre_service_line_segments
+
+        i += 1
+
+                 
 def point_on_segment(
     point: Point, 
     segment: LineSegment, 
