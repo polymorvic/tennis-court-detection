@@ -21,7 +21,8 @@ from tennis_court_detection.utils.helpers import (
     get_center_point_from_2_half_lines,
     traverse_vertical_line,
     create_reference_court,
-    build_input_for_homography_matrix_from_tennis_court_key_points_models
+    build_input_for_homography_matrix_from_tennis_court_key_points_models,
+    pair_2_vertical_lines_by_distance
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -342,37 +343,108 @@ class CourtDetector:
             return ls, intersections
 
         
-    def find_centre_service_line(
+    def find_centre_service_half_lines(
         self,
         intersection_point: Point,
         max_tol_iter: int = 5,
         canny_lower_thresh: int = 20,
         canny_upper_thresh: int = 100,
-        hough_thresh: int = 10,
-        step_ratio: float = 0.1,
-        kernel_size_ratio: float = 0.025,
+        hough_thresh: int = 20,
+        kernel_size_ratio: float = 0.1,
         roi_width_ratio: float = 0.025,
-        roi_height_ratio: float = 0.05,
+        roi_height_up_ratio: float = 0.05,
+        roi_height_bottom_ratio: float = 0.01,
         min_line_len_ratio: float = 0.2,
         max_line_gap_ratio: float = 0.1,
-        min_v_lines_spread_ratio: float = 0.075
-    ) -> list[list[LineSegment, LineSegment]]:
-        
-        return traverse_vertical_line(
-            self.img, 
-            intersection_point,
-            max_tol_iter,
-            canny_lower_thresh,
-            canny_upper_thresh,
-            hough_thresh,
-            step_ratio,
-            kernel_size_ratio,
-            roi_width_ratio,
-            roi_height_ratio,
-            min_line_len_ratio,
-            max_line_gap_ratio,
-            min_v_lines_spread_ratio
-        )
+        min_v_lines_spread_ratio: float = 0.05,
+        adapt_canny_thresh_step: int = 5,
+        adapt_hough_thresh_step: int = 2,
+        adapt_min_line_len_ratio_step: float = 0.02,
+        adapt_max_line_gap_ratio_step: float = 0.02,
+    ) -> tuple[HalfLine, HalfLine] | None:
+        y_start = intersection_point.y - int(roi_height_up_ratio * self.img.height)
+        y_end = intersection_point.y + int(roi_height_bottom_ratio * self.img.height)
+
+        x_start = intersection_point.x - int(roi_width_ratio * self.img.width)
+        x_end = intersection_point.x + int(roi_width_ratio * self.img.width)
+
+        roi = self.img[y_start:y_end, x_start:x_end]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+
+        kernel_size_px = int(kernel_size_ratio * roi.height) | 1
+        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, 75, 75)
+
+        centre_service_line_intersections = None
+
+        current_canny_lower_thresh = canny_lower_thresh
+        current_canny_upper_thresh = canny_upper_thresh
+        current_hough_thresh = hough_thresh
+        current_min_line_len_ratio = min_line_len_ratio
+        current_max_line_gap_ratio = max_line_gap_ratio
+        tol_iter = 0
+        while not centre_service_line_intersections:
+
+            if tol_iter >= max_tol_iter:
+                break
+
+            min_line_len_px = max(1, int(roi.height * current_min_line_len_ratio))
+            max_line_gap_px = max(0, int(roi.height * current_max_line_gap_ratio))
+
+            lines = lines_from_gray_img(
+                roi_blur,
+                current_canny_lower_thresh,
+                current_canny_upper_thresh,
+                current_hough_thresh,
+                min_line_len_px,
+                max_line_gap_px
+            )
+
+            if lines:
+                if get_debug_mode():
+                    roi_copy = roi.copy()
+                    for line in lines:
+                        p1, p2 = line.limit_to_img(roi)
+                        cv2.line(roi_copy, p1, p2, (0, 255, 0), 1)
+
+                    display_img(roi_copy)
+
+                v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
+                v_lines = [line for line in v_lines if line.slope is None]
+                h_lines = filter_horizontal_lines(lines)
+
+                if len(v_lines) >= 2 and h_lines:
+
+                    h_line = sorted(h_lines, key=lambda line: line.intercept)[-1]
+                    h_line_global = transform_line(h_line, roi, x_start, y_start)
+
+                    pair = pair_2_vertical_lines_by_distance(roi, v_lines, min_v_lines_spread_ratio)
+                    if pair is not None:
+                        left_v_line, right_v_line, _ = pair
+                        left_v_line_global = transform_line(left_v_line, roi, x_start, y_start)
+                        right_v_line_global = transform_line(right_v_line, roi, x_start, y_start)
+                        break
+
+            tol_iter += 1
+
+            current_canny_lower_thresh = max(0, current_canny_lower_thresh - adapt_canny_thresh_step)
+            current_canny_upper_thresh = min(255, current_canny_upper_thresh + adapt_canny_thresh_step)
+            current_hough_thresh = max(1, current_hough_thresh - adapt_hough_thresh_step)
+            current_min_line_len_ratio = max(0.0, current_min_line_len_ratio - adapt_min_line_len_ratio_step)
+            current_max_line_gap_ratio = min(1.0, current_max_line_gap_ratio + adapt_max_line_gap_ratio_step)
+
+        left_centre_service_point = left_v_line_global.intersection(h_line_global, self.img).point
+        right_centre_service_point = right_v_line_global.intersection(h_line_global, self.img).point
+
+        left_hl = HalfLine(point=left_centre_service_point, line=left_v_line_global)
+        right_hl = HalfLine(point=right_centre_service_point, line=right_v_line_global)
+
+        if get_debug_mode():
+            img_copy = self.img.copy()
+            img_copy = left_hl.draw_on_image(img_copy)
+            img_copy = right_hl.draw_on_image(img_copy)
+            display_img(img_copy)
+
+        return left_hl, right_hl
 
 
     def find_netline(
@@ -430,14 +502,4 @@ class CourtDetector:
             transformed_court.right_outer_netline_point,
         )
 
-
-
-        
-
-
-
-
-
-
-
-        
+      
