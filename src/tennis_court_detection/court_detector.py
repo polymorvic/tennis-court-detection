@@ -31,6 +31,7 @@ from tennis_court_detection.utils.filters import (
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
     adjust_horizontal_line,
+    adjust_net_line_segments,
     traverse_sideline,
     scan_line_segments_for_horizontal_lines,
     traverse_horizontal_line
@@ -401,15 +402,11 @@ class CourtDetector:
                 cv2.circle(img_copy, point, 2, (0, 255, 0), -1)
             display_img(img_copy)
 
-        netpoint_h = [point.y for point in raw_netline_points if point is not None]
-        if not netpoint_h:
-            return None
-
-        mean_netline_y = int(np.mean(netpoint_h))
-        p_left = Point(transformed_court.left_outer_netline_point.x, mean_netline_y)
-        p_right = Point(transformed_court.right_outer_netline_point.x, mean_netline_y)
-
-        return adjust_horizontal_line(self.img, p_left, p_right)
+        return adjust_net_line_segments(
+            self.img, 
+            transformed_court.left_outer_netline_point, 
+            transformed_court.right_outer_netline_point,
+        )
 
 
 
