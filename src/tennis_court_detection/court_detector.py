@@ -22,7 +22,8 @@ from tennis_court_detection.utils.helpers import (
     traverse_vertical_line,
     create_reference_court,
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
-    pair_2_vertical_lines_by_distance
+    pair_2_vertical_lines_by_distance,
+    line_and_line_segments_intersections
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -501,5 +502,28 @@ class CourtDetector:
             transformed_court.left_outer_netline_point, 
             transformed_court.right_outer_netline_point,
         )
+
+
+    def centre_service_half_lines_to_segments(
+        self,
+        centre_service_half_lines: tuple[HalfLine, HalfLine],
+        net_line_segmnets: list[LineSegment]
+    ) -> tuple[list[LineSegment], list[LineSegment]]:
+
+        left_service_netline_point = line_and_line_segments_intersections(
+            centre_service_half_lines[0].line, 
+            net_line_segmnets, 
+            self.img
+        ).point
+
+        right_service_netline_point = line_and_line_segments_intersections(
+            centre_service_half_lines[1].line, 
+            net_line_segmnets, 
+            self.img
+        ).point
+
+        return [LineSegment.from_points(centre_service_half_lines[0].point, left_service_netline_point)], \
+                [LineSegment.from_points(centre_service_half_lines[1].point, right_service_netline_point)]
+        
 
       
