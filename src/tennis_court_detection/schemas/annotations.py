@@ -5,18 +5,20 @@ import numpy as np
 
 
 class TennisCourtKeyPointLabel(StrEnum):
-    left_outer_netline_point = "left_outer_netline_point"
-    left_inner_netline_point = "left_inner_netline_point"
-    right_inner_netline_point = "right_inner_netline_point"
-    right_outer_netline_point = "right_outer_netline_point"
-    centre_service_point = "centre_service_point"
-    netline_service_point = "netline_service_point"
-    left_service_point = "left_service_point"
-    right_service_point = "right_service_point"
     left_outer_baseline_point = "left_outer_baseline_point"
     left_inner_baseline_point = "left_inner_baseline_point"
-    right_inner_baseline_point = "right_inner_baseline_point"
+    left_outer_netline_point = "left_outer_netline_point"
+    left_inner_netline_point = "left_inner_netline_point"
     right_outer_baseline_point = "right_outer_baseline_point"
+    right_inner_baseline_point = "right_inner_baseline_point"
+    right_outer_netline_point = "right_outer_netline_point"
+    right_inner_netline_point = "right_inner_netline_point"
+    left_service_point = "left_service_point"
+    right_service_point = "right_service_point"
+    left_service_netline_point = "left_service_netline_point"
+    right_service_netline_point = "right_service_netline_point"
+    left_centre_service_point = "left_centre_service_point"
+    right_centre_service_point = "right_centre_service_point"
 
 
     @classmethod
