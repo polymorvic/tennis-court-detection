@@ -116,7 +116,7 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
         for name, ann in self.cleaned_annotations.items():
             labels = [kp.label for kp in ann.key_points]
             unique_count = len(set(labels))
-            if unique_count != len(TennisCourtKeyPointLabel):
+            if unique_count != len(TennisCourtKeyPointLabel) or unique_count != len(labels):
                 print(name)
     
 
