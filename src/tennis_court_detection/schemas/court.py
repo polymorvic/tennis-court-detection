@@ -37,8 +37,8 @@ class TennisCourtKeyPoints(TennisModel):
     right_service_point: Point | None = None
     left_service_netline_point: Point | None = None
     right_service_netline_point: Point | None = None
-    left_center_service_point: Point | None = None
-    right_center_service_point: Point | None = None
+    left_centre_service_point: Point | None = None
+    right_centre_service_point: Point | None = None
 
 
     @classmethod
@@ -56,8 +56,8 @@ class TennisCourtKeyPoints(TennisModel):
             right_service_point=Point.from_iterable(matrix[9]),
             left_service_netline_point=Point.from_iterable(matrix[10]),
             right_service_netline_point=Point.from_iterable(matrix[11]),
-            left_center_service_point=Point.from_iterable(matrix[12]),
-            right_center_service_point=Point.from_iterable(matrix[13]),
+            left_centre_service_point=Point.from_iterable(matrix[12]),
+            right_centre_service_point=Point.from_iterable(matrix[13]),
         )
 
 
