@@ -23,11 +23,10 @@ def run(
     pics_path: Path | str = 'data/pics',
     params_path: Path | str = 'config/process_params.config.json',
     blacklist_path: Path | str = 'config/pics_blacklist.config.yaml',
-    annotation_path: Path | str = 'data/annotations.json',
     output_dir: Path | str = 'results'
 ):
     '''
-    uv run python -m tests.key_points --test-type KEY_POINTS
+    uv run python -m tests.drawing --test-type KEY_POINTS
     '''
     proj_cwd = Path.cwd()
     pics_path = proj_cwd / pics_path
@@ -36,7 +35,6 @@ def run(
 
     not_found_dir.mkdir(exist_ok=True)
 
-    tcac = TennisCourtAnnotationCollection.from_clean_file(annotation_path)
     params = load_process_params(params_path)
     blacklist = load_pics_blacklist(blacklist_path).blacklist
 
@@ -49,12 +47,6 @@ def run(
     for file in tqdm(sorted(pics_path.glob("*png"))):
 
         if file.name in blacklist:
-            continue
-
-        ann = tcac.filter_by_image(file.name)
-        if ann is None:
-            print(f'Brak annotacji dla zdjęcia: {file.stem}')
-            no_annotation.append(file.name)
             continue
 
         img = read_image_as_numpyimage(file)
@@ -76,7 +68,7 @@ def run(
         try:
             segments = detector.find_sidelines_segments(intersections)
 
-        except Exception:
+        except Exception as e:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
         
@@ -87,7 +79,7 @@ def run(
                 **baseline_params.model_dump(), 
                 left_segments=left_inner_segments, 
                 right_segments=right_inner_segments)
-        except Exception:
+        except Exception as e:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
         
@@ -107,7 +99,7 @@ def run(
 
         try:
             centre_service_half_lines = detector.find_centre_service_half_lines(inters[0].point)
-        except Exception:
+        except Exception as e:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
@@ -123,7 +115,7 @@ def run(
                 right_outer_segments,
                 service_line_segments
             )
-        except Exception:
+        except Exception as e:
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
