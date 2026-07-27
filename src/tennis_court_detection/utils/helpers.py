@@ -600,8 +600,8 @@ def create_reference_court(
         right_service_point=Point.from_iterable((inner_right_x, service_y)),
         left_service_netline_point=Point.from_iterable((inner_left_x, opposite_service_y)),
         right_service_netline_point=Point.from_iterable((inner_right_x, opposite_service_y)),
-        left_center_service_point=Point.from_iterable((half_x, opposite_service_y)),
-        right_center_service_point=Point.from_iterable((half_x, service_y)),
+        left_centre_service_point=Point.from_iterable((half_x, opposite_service_y)),
+        right_centre_service_point=Point.from_iterable((half_x, service_y)),
     )
 
     ref_img = np.zeros((ref_img_height, ref_img_width, 3), np.uint8)
