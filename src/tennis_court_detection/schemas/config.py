@@ -24,6 +24,11 @@ class Direction(StrEnum):
     RIGHT = "right"
 
 
+class LinePosition(StrEnum):
+    TOP = "top"
+    BOTTOM = "bottom"
+    
+
 class MatchParams(BaseModel):
     service_side: ServiceSide
     match_type: MatchType
