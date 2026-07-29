@@ -18,7 +18,6 @@ def filter_horizontal_lines(
     horizontal: bool = True,
     include_none_slope: bool = False
 ) -> list[Line] | None:
-    validate_number(slope_thresh, float, 0, 0.2)
 
     if horizontal:
         filtered = [
@@ -40,8 +39,6 @@ def get_vertical_lines(
     lines: list[Line],
     theta_thresh: float = 1.0
 ) -> list[Line] | None:
-    validate_number(theta_thresh, float, 0, 20)
-
     lines = [line for line in lines if abs(line.theta - 90) < theta_thresh]
     return lines if lines else None
 
