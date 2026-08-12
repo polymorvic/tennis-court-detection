@@ -102,6 +102,7 @@ def traverse_horizontal_line(
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
     line_position: LinePosition = LinePosition.BOTTOM,
+    horizontal_static: bool = True,
 ) -> tuple[list[Line], list[tuple[int, int]]]:
     img = check_if_numpy_image(img)
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
@@ -126,10 +127,14 @@ def traverse_horizontal_line(
     
     lines = []
     segment_xs = []
+    y1 = p_c.y - h_delta
+    y2 = p_c.y + h_delta
     while {Direction.LEFT: x2 > p_left.x, Direction.RIGHT: x1 < p_right.x}[direction]:
 
-        crop = img[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
-        crop_gray = img_gray[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
+        y_c =  (y2 + y1) // 2
+
+        crop = img[y1: y2, x1: x2]
+        crop_gray = img_gray[y1: y2, x1: x2]
 
         edges = cv2.Canny(crop_gray, lower_canny_thresh, upper_canny_thresh)
         segments = cv2.HoughLinesP(
@@ -160,7 +165,7 @@ def traverse_horizontal_line(
         sub_lines = filter_horizontal_lines(sub_lines)
         if sub_lines:
             searched_line = sorted(sub_lines, key = lambda line: line.intercept)[position_index]
-            searched_line_global = transform_line(searched_line, crop, x1, p_c.y - h_delta)
+            searched_line_global = transform_line(searched_line, crop, x1, y1)
             lines.append(searched_line_global)
         else:
             lines.append(None)
@@ -170,7 +175,7 @@ def traverse_horizontal_line(
 
         if get_debug_mode():
             display_img(crop_copy)
-            cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
+            cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
         if direction == Direction.LEFT:
             x2 = x1
@@ -178,6 +183,11 @@ def traverse_horizontal_line(
         elif direction == Direction.RIGHT:
             x1 = x2
             x2 += step
+
+        if sub_lines and not horizontal_static:
+            y_diff = int(searched_line_global.intercept) - y_c
+            y1 += y_diff
+            y2 += y_diff
 
 
     if exceeds_empty_threshold(lines):
@@ -189,7 +199,7 @@ def traverse_horizontal_line(
         print(f'before adjust: {interpolated_lines=}')
         print(f'after adjust: {interpolated_lines=}')
         display_img(crop_copy)
-        cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
+        cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
         display_img(img_copy)
 
     return interpolated_lines, segment_xs
@@ -201,15 +211,18 @@ def adjust_horizontal_line(
     right_point: Point,
     step_ratio: float = 0.026,
     height_delta_ratio: float = 0.0186,
-    line_position: LinePosition = LinePosition.BOTTOM
+    line_position: LinePosition = LinePosition.BOTTOM,
+    horizontal_static: bool = True
 ) -> list[LineSegment]:
     lines_left, xs_left = traverse_horizontal_line(
         img, left_point, right_point, Direction.LEFT,
-        step_ratio, height_delta_ratio, line_position=line_position
+        step_ratio, height_delta_ratio, line_position=line_position, 
+        horizontal_static=horizontal_static
     )
     lines_right, xs_right = traverse_horizontal_line(
         img, left_point, right_point, Direction.RIGHT,
-        step_ratio, height_delta_ratio, line_position=line_position
+        step_ratio, height_delta_ratio, line_position=line_position,
+        horizontal_static=horizontal_static
     )
 
     pairs = list(zip(lines_left + lines_right, xs_left + xs_right))
