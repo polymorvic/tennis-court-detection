@@ -669,3 +669,15 @@ def line_and_line_segments_intersections(
         if intersection is not None and point_on_segment(intersection.point, segment):
             intersections.append(intersection)
     return intersections[0] if intersections else None
+
+
+def mask_line_neighborhood_on_edges(
+    img: ArrayLike,
+    edges: ArrayLike,
+    mask: ArrayLike,
+) -> ArrayLike:
+    mask_img = np.zeros_like(img)
+    mask_img[edges > 0] = (255, 255, 255)
+    mask_img[mask] = (255, 255, 0)
+    mask_img = np.where(np.dstack([edges & mask] * 3), (255, 0, 0), mask_img)
+    return mask_img
