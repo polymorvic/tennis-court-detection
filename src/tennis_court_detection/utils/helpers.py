@@ -44,7 +44,8 @@ def lines_from_gray_img(
     canny_upper_thresh: int,
     hough_thresh: int,
     min_line_len_px: int,
-    max_line_gap_px: float
+    max_line_gap_px: float,
+    return_canny: bool = False
 ) -> list[Line] | None:
     img = check_if_numpy_image(img)
     edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
@@ -70,6 +71,8 @@ def lines_from_gray_img(
     if segments is None:
         return []
     
+    if return_canny:
+        return [Line.from_hough_segment(*segment) for segment in segments], edges
     return [Line.from_hough_segment(*segment) for segment in segments]
 
 
