@@ -25,7 +25,8 @@ from tennis_court_detection.utils.helpers import (
     create_reference_court,
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
     pair_2_vertical_lines_by_distance,
-    line_and_line_segments_intersections
+    line_and_line_segments_intersections,
+    fill_missing_lines
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -548,7 +549,6 @@ class CourtDetector:
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
     ) -> list[LineSegment] | None:
-        # TODO czy nie podzielic na mniejsze funkcje
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
 
@@ -582,7 +582,7 @@ class CourtDetector:
         )
 
         initial_h_lines = filter_horizontal_lines(lines, slope_thresh=1)
-
+        line_segments_all = []
         for line in initial_h_lines:
 
             p1, p2 = line.limit_to_img(roi)
@@ -610,8 +610,27 @@ class CourtDetector:
                     horizontal_static=False
                 )
 
-            for segment in left_lines:
-                cv2.line(roi, segment.start, segment.end, (0, 255, 0), 1)
+            all_xs = left_segments_xs + right_segments_xs
+            all_lines = left_lines + right_lines
+
+            line_segments = sorted(zip(all_lines, all_xs), key=lambda x: x[1][0])
+            line_segments_filled = fill_missing_lines(line_segments)
+            points_to_ls = [
+                ((start_x, int(line.intercept)), (end_x, int(line.intercept))) 
+                for line, (start_x, end_x) in line_segments_filled
+            ]
+
+            line_segments = [LineSegment.from_tuples(start=pt[0], end=pt[1]) for pt in points_to_ls]
+
+            line_segments_all.append(line_segments)
+
+
+        return line_segments_all, initial_h_lines, roi, edges
+
+        for segment in all_segments:
+            cv2.line(roi, segment.start, segment.end, (0, 255, 0), 1)
+
+            
 
 
         if get_debug_mode():
