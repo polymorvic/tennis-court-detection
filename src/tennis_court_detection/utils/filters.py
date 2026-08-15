@@ -260,7 +260,7 @@ def check_is_service_line(
 def filter_horizontal_lines_by_white_pixels(
     roi: ArrayLike,
     edges: ArrayLike,
-    initial_h_lines: list[Line],
+    initial_horizontal_lines: list[Line],
     h_margin_img_ratio: float = 0.05,
     w_margin_img_ratio: float = 0.1,
     white_pixel_ratio_thresh: float = 0.07
@@ -271,7 +271,7 @@ def filter_horizontal_lines_by_white_pixels(
 
     white_ratios = []
     h_lines = []
-    for line in initial_h_lines:
+    for line in initial_horizontal_lines:
         narrow_roi = NumpyImage(roi[:, w_margin_px:-w_margin_px])
         edges_copy = edges.copy()
         narrow_edges = edges_copy[:, w_margin_px:-w_margin_px]
@@ -298,5 +298,50 @@ def filter_horizontal_lines_by_white_pixels(
         if white_pixels_ratio > white_pixel_ratio_thresh:
             h_lines.append(line)
 
-    return h_lines
+    return 
+
+
+# def filter_horizontal_lines_by_white_pixels_segment_based(
+#     roi: ArrayLike,
+#     edges: ArrayLike,
+#     initial_horizontal_lines: list[Line],
+#     line_segments: list[LineSegment],
+#     h_margin_img_ratio: float = 0.05,
+#     w_margin_img_ratio: float = 0.1,
+#     white_pixel_ratio_thresh: float = 0.07
+# ) -> list[Line]:
+#     roi = check_if_numpy_image(roi)
+#     h_margin_px = int(h_margin_img_ratio * roi.height)
+#     w_margin_px = int(w_margin_img_ratio * roi.width)
+
+#     white_ratios = []
+#     h_lines = []
+#     for line in initial_horizontal_lines:
+#         narrow_roi = NumpyImage(roi[:, w_margin_px:-w_margin_px])
+#         edges_copy = edges.copy()
+#         narrow_edges = edges_copy[:, w_margin_px:-w_margin_px]
+        
+#         if get_debug_mode():
+#             narrow_edges_copy = narrow_edges.copy()
+
+#         x_coords = np.arange(0, narrow_roi.width)
+#         y_coords = np.arange(0, narrow_roi.height)
+
+#         y_values = line.slope * x_coords + line.intercept
+#         mask = np.abs(y_values - y_coords[:, np.newaxis]) <= h_margin_px
+
+#         narrow_edges[~mask] = 0
+#         white_pixels_ratio = np.count_nonzero(narrow_edges) / (narrow_edges.width * h_margin_px * 2)
+#         white_ratios.append(white_pixels_ratio)
+
+#         if get_debug_mode():
+#             mask_img = mask_line_neighborhood_on_edges(narrow_roi, narrow_edges_copy, mask)
+#             display_img(mask_img)
+#             print(f"white_pixels_ratio: {white_pixels_ratio}")
+
+
+#         if white_pixels_ratio > white_pixel_ratio_thresh:
+#             h_lines.append(line)
+
+#     return h_lines
 
