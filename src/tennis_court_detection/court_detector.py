@@ -548,6 +548,7 @@ class CourtDetector:
         max_line_gap_ratio = 0.1,
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
+        roi_trim_bottom_ratio: float = 0.1
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -565,6 +566,9 @@ class CourtDetector:
         p_right_top = line_and_line_segments_intersections(line, right_outer_segments, self.img).point
 
         roi = self.img[p_left_top.y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
+
+        roi_trim_bottom_px = int(roi_trim_bottom_ratio * roi.height)
+        roi = roi[:-roi_trim_bottom_px, :]
 
         kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
 
