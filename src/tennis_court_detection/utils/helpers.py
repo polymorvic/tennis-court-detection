@@ -681,3 +681,28 @@ def mask_line_neighborhood_on_edges(
     mask_img[mask] = (255, 255, 0)
     mask_img = np.where(np.dstack([edges & mask] * 3), (255, 0, 0), mask_img)
     return mask_img
+
+
+def fill_missing_lines(
+    items: list[tuple[Line | None, tuple[int, int]]]
+) -> list[tuple[Line, tuple[int, int]]]:
+    valid_indices = [
+        i for i, (line, _) in enumerate(items)
+        if line is not None
+    ]
+
+    if not valid_indices:
+        return items
+
+    result = []
+
+    for i, (line, interval) in enumerate(items):
+        if line is None:
+            nearest_i = min(valid_indices, key=lambda j: abs(j - i))
+            intercept = items[nearest_i][0].intercept
+
+            line = Line(slope=0.0, intercept=intercept)
+
+        result.append((line, interval))
+
+    return result
