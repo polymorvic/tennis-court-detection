@@ -136,6 +136,9 @@ def traverse_horizontal_line(
         crop = img[y1: y2, x1: x2]
         crop_gray = img_gray[y1: y2, x1: x2]
 
+        if crop.size == 0:
+            break
+
         edges = cv2.Canny(crop_gray, lower_canny_thresh, upper_canny_thresh)
         segments = cv2.HoughLinesP(
             edges, 
@@ -189,18 +192,41 @@ def traverse_horizontal_line(
             y1 += y_diff
             y2 += y_diff
 
+    if get_debug_mode():
+        display_img(crop_copy)
+        cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        display_img(img_copy)
+
+    return lines, segment_xs
+
+
+def traverse_with_validation_and_interpolation(
+    img: np.ndarray,
+    p_left: Point,
+    p_right: Point,
+    direction: Direction,
+    step_ratio: float = 0.026,
+    h_delta_ratio: float = 0.0186,
+    lower_canny_thresh: int = 20,
+    upper_canny_thresh: int = 100,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.4,
+    max_line_gap_ratio: float = 0.1,
+    line_position: LinePosition = LinePosition.BOTTOM,
+    horizontal_static: bool = True,   
+):
+    lines, segment_xs = traverse_horizontal_line(
+        img, p_left, p_right, direction,
+        step_ratio, h_delta_ratio,
+        lower_canny_thresh, upper_canny_thresh,
+        hough_thresh_ratio, min_line_len_ratio, max_line_gap_ratio,
+        line_position, horizontal_static
+    )
 
     if exceeds_empty_threshold(lines):
         raise NotEnoughLineSegmentsFound()
 
     interpolated_lines = interpolate_lines_intercept(lines)
-
-    if get_debug_mode():
-        print(f'before adjust: {interpolated_lines=}')
-        print(f'after adjust: {interpolated_lines=}')
-        display_img(crop_copy)
-        cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        display_img(img_copy)
 
     return interpolated_lines, segment_xs
 
@@ -214,12 +240,12 @@ def adjust_horizontal_line(
     line_position: LinePosition = LinePosition.BOTTOM,
     horizontal_static: bool = True
 ) -> list[LineSegment]:
-    lines_left, xs_left = traverse_horizontal_line(
+    lines_left, xs_left = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.LEFT,
         step_ratio, height_delta_ratio, line_position=line_position, 
         horizontal_static=horizontal_static
     )
-    lines_right, xs_right = traverse_horizontal_line(
+    lines_right, xs_right = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.RIGHT,
         step_ratio, height_delta_ratio, line_position=line_position,
         horizontal_static=horizontal_static
