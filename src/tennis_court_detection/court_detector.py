@@ -44,7 +44,7 @@ from tennis_court_detection.utils.adjustments import (
     traverse_horizontal_line,
     build_segments
 )
-from tennis_court_detection.config import get_debug_mode
+from tennis_court_detection.config import get_debug_mode, set_debug_mode
 from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
 
 
@@ -549,7 +549,8 @@ class CourtDetector:
         max_line_gap_ratio = 0.1,
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
-        roi_trim_bottom_ratio: float = 0.1
+        roi_trim_bottom_ratio: float = 0.1,
+        white_column_ratio_thresh: float = 0.7
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -645,12 +646,13 @@ class CourtDetector:
 
             display_img(roi_copy)
 
-
+        # set_debug_mode(True)
         h_lines = filter_horizontal_lines_by_white_pixels_segment_based(
             roi,
             edges,
             initial_h_lines,
-            line_segments_all
+            line_segments_all,
+            white_column_ratio_thresh = white_column_ratio_thresh
         )
         
         if get_debug_mode():

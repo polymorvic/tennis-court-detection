@@ -310,7 +310,7 @@ def filter_horizontal_lines_by_white_pixels_segment_based(
     line_segments: list[LineSegment],
     h_margin_img_ratio: float = 0.05,
     w_margin_img_ratio: float = 0.1,
-    white_column_ratio_thresh: float = 0.75
+    white_column_ratio_thresh: float = 0.7
 ) -> list[Line]:
     roi = check_if_numpy_image(roi)
     h_margin_px = int(h_margin_img_ratio * roi.height)
