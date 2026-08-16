@@ -103,6 +103,7 @@ def traverse_horizontal_line(
     max_line_gap_ratio: float = 0.1,
     line_position: LinePosition = LinePosition.BOTTOM,
     horizontal_static: bool = True,
+    to_center: bool = False
 ) -> tuple[list[Line], list[tuple[int, int]]]:
     img = check_if_numpy_image(img)
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
@@ -114,12 +115,20 @@ def traverse_horizontal_line(
         LinePosition.BOTTOM: -1
     }[line_position]
 
-    if direction == Direction.LEFT:
-        x1 = p_c.x - step
-        x2 = p_c.x
+    if not to_center:
+        if direction == Direction.LEFT:
+            x1 = p_c.x - step
+            x2 = p_c.x
+        else:
+            x1 = p_c.x 
+            x2 = p_c.x + step
     else:
-        x1 = p_c.x 
-        x2 = p_c.x + step
+        if direction == Direction.LEFT:
+            x1 = p_left.x
+            x2 = p_left.x + step
+        else:
+            x1 = p_right.x - step
+            x2 = p_right.x
         
     img_copy = img.copy()
     img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
@@ -129,7 +138,11 @@ def traverse_horizontal_line(
     segment_xs = []
     y1 = p_c.y - h_delta
     y2 = p_c.y + h_delta
-    while {Direction.LEFT: x2 > p_left.x, Direction.RIGHT: x1 < p_right.x}[direction]:
+    while (
+        {Direction.LEFT: x2 > p_left.x, Direction.RIGHT: x1 < p_right.x}[direction]
+        if not to_center
+        else {Direction.LEFT: x1 < p_c.x, Direction.RIGHT: x2 > p_c.x}[direction]
+    ):
 
         y_c =  (y2 + y1) // 2
 
@@ -180,12 +193,20 @@ def traverse_horizontal_line(
             display_img(crop_copy)
             cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
-        if direction == Direction.LEFT:
-            x2 = x1
-            x1 -= step
-        elif direction == Direction.RIGHT:
-            x1 = x2
-            x2 += step
+        if not to_center:
+            if direction == Direction.LEFT:
+                x2 = x1
+                x1 -= step
+            elif direction == Direction.RIGHT:
+                x1 = x2
+                x2 += step
+        else:
+            if direction == Direction.LEFT:
+                x1 = x2
+                x2 += step
+            elif direction == Direction.RIGHT:
+                x2 = x1
+                x1 -= step
 
         if sub_lines and not horizontal_static:
             y_diff = int(searched_line_global.intercept) - y_c
