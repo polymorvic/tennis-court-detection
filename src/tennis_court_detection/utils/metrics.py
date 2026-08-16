@@ -1,5 +1,6 @@
 import numpy as np
 from cvgeomkit.common import ArrayLike
+from cvgeomkit.geometry import LineSegment
 
 
 def calculate_white_pixels_ratio(
@@ -49,3 +50,14 @@ def calculate_white_columns_ratio(
         return 0.0
 
     return np.count_nonzero(white_columns) / mask_columns_count
+
+
+def get_intercept_std(
+    line_segments: list[LineSegment]
+) -> float:
+    intercepts = [
+        segment.line.intercept
+        for segment in line_segments
+    ]
+
+    return float(np.std(intercepts))
