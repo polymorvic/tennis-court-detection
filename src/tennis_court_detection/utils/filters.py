@@ -9,7 +9,11 @@ from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.utils.plotting import display_img
 
 from tennis_court_detection.utils.validators import check_if_numpy_image
-from tennis_court_detection.utils.metrics import calculate_white_columns_ratio, calculate_white_pixels_ratio
+from tennis_court_detection.utils.metrics import (
+    calculate_white_columns_ratio, 
+    calculate_white_pixels_ratio,
+    get_intercept_std
+)
 
 from tennis_court_detection.utils.helpers import (
     lines_from_gray_img, 
@@ -310,11 +314,13 @@ def filter_horizontal_lines_by_white_pixels_segment_based(
     line_segments: list[LineSegment],
     h_margin_img_ratio: float = 0.05,
     w_margin_img_ratio: float = 0.1,
-    white_column_ratio_thresh: float = 0.7
+    line_intercept_std_ratio: float = 0.02,
+    white_column_ratio_thresh: float = 0.5
 ) -> list[Line]:
     roi = check_if_numpy_image(roi)
     h_margin_px = int(h_margin_img_ratio * roi.height)
     w_margin_px = int(w_margin_img_ratio * roi.width)
+    line_intercept_std_px = int(line_intercept_std_ratio * roi.height)
 
     roi = NumpyImage(roi[:, w_margin_px:-w_margin_px])
     edges = NumpyImage(edges[:, w_margin_px:-w_margin_px])
@@ -323,6 +329,9 @@ def filter_horizontal_lines_by_white_pixels_segment_based(
     white_column_ratios = []
     h_lines = []
     for ls, line in zip(line_segments, initial_horizontal_lines):
+
+        if get_intercept_std(ls) < line_intercept_std_px:
+            continue
 
         mask = np.zeros(
             (roi.height, roi.width),
