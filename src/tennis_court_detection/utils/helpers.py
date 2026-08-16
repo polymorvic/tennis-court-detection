@@ -49,7 +49,6 @@ def lines_from_gray_img(
 ) -> list[Line] | None:
     img = check_if_numpy_image(img)
     edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
-    edges = straighten_rows(edges)
     segments = cv2.HoughLinesP(
         edges,
         rho = 1,
