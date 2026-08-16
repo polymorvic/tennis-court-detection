@@ -32,7 +32,8 @@ from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
     ensure_is_baseline,
     check_is_service_line,
-    filter_horizontal_lines_by_white_pixels
+    filter_horizontal_lines_by_white_pixels,
+    filter_horizontal_lines_by_white_pixels_segment_based
 )
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
@@ -600,8 +601,11 @@ class CourtDetector:
                     h_delta_ratio=height_delta_ratio, 
                     step_ratio=step_ratio, 
                     line_position=LinePosition.TOP,
-                    horizontal_static=False
+                    horizontal_static=False,
+                    to_center=True
                 )
+            left_segments = sorted(zip(left_lines, left_segments_xs), key=lambda x: x[1][0])
+            left_segments_filled = fill_missing_lines(left_segments)
 
             right_lines, right_segments_xs = traverse_horizontal_line(
                     roi, 
@@ -611,30 +615,26 @@ class CourtDetector:
                     h_delta_ratio=height_delta_ratio, 
                     step_ratio=step_ratio, 
                     line_position=LinePosition.TOP,
-                    horizontal_static=False
+                    horizontal_static=False,
+                    to_center=True
                 )
+            right_segments = sorted(zip(right_lines, right_segments_xs), key=lambda x: x[1][0])
+            right_segments_filled = fill_missing_lines(right_segments)
 
-            all_xs = left_segments_xs + right_segments_xs
-            all_lines = left_lines + right_lines
+            segments_filled = left_segments_filled + right_segments_filled
+            segments_filled = fill_missing_lines(segments_filled)
 
-            line_segments = sorted(zip(all_lines, all_xs), key=lambda x: x[1][0])
-            line_segments_filled = fill_missing_lines(line_segments)
+            if all(item[0] is None for item in segments_filled):
+                continue
+
             points_to_ls = [
                 ((start_x, int(line.intercept)), (end_x, int(line.intercept))) 
-                for line, (start_x, end_x) in line_segments_filled
+                for line, (start_x, end_x) in segments_filled
             ]
 
             line_segments = [LineSegment.from_tuples(start=pt[0], end=pt[1]) for pt in points_to_ls]
 
             line_segments_all.append(line_segments)
-
-
-        return line_segments_all, initial_h_lines, roi, edges
-
-        for segment in all_segments:
-            cv2.line(roi, segment.start, segment.end, (0, 255, 0), 1)
-
-            
 
 
         if get_debug_mode():
@@ -646,10 +646,11 @@ class CourtDetector:
             display_img(roi_copy)
 
 
-        h_lines = filter_horizontal_lines_by_white_pixels(
+        h_lines = filter_horizontal_lines_by_white_pixels_segment_based(
             roi,
             edges,
-            initial_h_lines
+            initial_h_lines,
+            line_segments_all
         )
         
         if get_debug_mode():
