@@ -139,23 +139,22 @@ def run(
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
-        # try:
-        #     netline_top_segments = detector.find_top_netline(
-        #         netline_bottom_segments,
-        #         left_outer_segments,
-        #         right_outer_segments,
-        #         paired_horizontal_half_lines,
-        #         centre_service_half_lines
-        #     )
-        # except Exception:
-        #     cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
-        #     continue
+        try:
+            netline_top_segments = detector.find_top_netline(
+                netline_bottom_segments,
+                left_outer_segments,
+                right_outer_segments,
+                paired_horizontal_half_lines,
+                centre_service_half_lines
+            )
+        except Exception:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+            continue
 
-        # if not netline_top_segments:
-        #     continue
+        if not netline_top_segments:
+            continue
 
         img_copy = img.copy()
-        netline_top_segments = []
         for segments in [baseline_segments, left_outer_segments, 
                         left_inner_segments, right_inner_segments, right_outer_segments,
                         service_line_segments, left_centre_service_line_segments, 
