@@ -549,8 +549,9 @@ class CourtDetector:
         max_line_gap_ratio = 0.1,
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
-        roi_trim_bottom_ratio: float = 0.1,
-        white_column_ratio_thresh: float = 0.7
+        roi_trim_ratio: float = 0.1,
+        line_intercept_std_ratio: float = 0.02,
+        white_column_ratio_thresh: float = 0.5
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -569,8 +570,10 @@ class CourtDetector:
 
         roi = self.img[p_left_top.y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
 
-        roi_trim_bottom_px = int(roi_trim_bottom_ratio * roi.height)
-        roi = roi[:-roi_trim_bottom_px, :]
+        roi_trim_px = int(roi_trim_ratio * roi.height)
+        roi = roi[roi_trim_px:-roi_trim_px, :]
+        roi_origin_x = p_left_top.x - margin_w_px
+        roi_origin_y = p_left_top.y + roi_trim_px
 
         kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
 
@@ -646,15 +649,15 @@ class CourtDetector:
 
             display_img(roi_copy)
 
-        # set_debug_mode(True)
         h_lines = filter_horizontal_lines_by_white_pixels_segment_based(
             roi,
             edges,
             initial_h_lines,
             line_segments_all,
+            line_intercept_std_ratio = line_intercept_std_ratio,
             white_column_ratio_thresh = white_column_ratio_thresh
         )
-        
+
         if get_debug_mode():
             for line in h_lines:
                 roi_copy = roi.copy()
@@ -663,8 +666,8 @@ class CourtDetector:
                 display_img(roi_copy)
 
 
-        centre_left_point_local = transform_point(centre_service_half_lines[0].point, p_left_top.x - margin_w_px, p_left_top.y, to_global=False)
-        centre_right_point_local = transform_point(centre_service_half_lines[1].point, p_left_top.x - margin_w_px, p_left_top.y, to_global=False)
+        centre_left_point_local = transform_point(centre_service_half_lines[0].point, roi_origin_x, roi_origin_y, to_global=False)
+        centre_right_point_local = transform_point(centre_service_half_lines[1].point, roi_origin_x, roi_origin_y, to_global=False)
 
         prj_x = int((centre_left_point_local.x + centre_right_point_local.x) / 2)
         v_line = Line(xv=prj_x)
@@ -677,11 +680,11 @@ class CourtDetector:
 
         intersections = sorted(intersections, key=lambda inter: inter.point.y)[::-1]
 
-        p_start_left = transform_point(netline_bottom_segments[0].start, p_left_top.x - margin_w_px, p_left_top.y, to_global=False)
-        p_end_left = transform_point(netline_bottom_segments[0].end, p_left_top.x - margin_w_px, p_left_top.y, to_global=False)
+        p_start_left = transform_point(netline_bottom_segments[0].start, roi_origin_x, roi_origin_y, to_global=False)
+        p_end_left = transform_point(netline_bottom_segments[0].end, roi_origin_x, roi_origin_y, to_global=False)
 
-        p_start_right = transform_point(netline_bottom_segments[-1].start, p_left_top.x - margin_w_px, p_left_top.y, to_global=False)
-        p_end_right = transform_point(netline_bottom_segments[-1].end, p_left_top.x - margin_w_px, p_left_top.y, to_global=False)
+        p_start_right = transform_point(netline_bottom_segments[-1].start, roi_origin_x, roi_origin_y, to_global=False)
+        p_end_right = transform_point(netline_bottom_segments[-1].end, roi_origin_x, roi_origin_y, to_global=False)
 
         left_x = min(p_start_left.x, p_end_left.x)
         right_x = max(p_start_right.x, p_end_right.x)
@@ -703,7 +706,7 @@ class CourtDetector:
                     horizontal_static=False
                 )
 
-                top_netline_segments = [transform_line_segment(ls, p_left_top.x - margin_w_px, p_left_top.y) for ls in local_top_netline_segments]
+                top_netline_segments = [transform_line_segment(ls, roi_origin_x, roi_origin_y) for ls in local_top_netline_segments]
 
             except NotEnoughLineSegmentsFound:
                 continue
