@@ -44,11 +44,11 @@ def lines_from_gray_img(
     canny_upper_thresh: int,
     hough_thresh: int,
     min_line_len_px: int,
-    max_line_gap_px: float
+    max_line_gap_px: float,
+    return_canny: bool = False
 ) -> list[Line] | None:
     img = check_if_numpy_image(img)
     edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
-    edges = straighten_rows(edges)
     segments = cv2.HoughLinesP(
         edges,
         rho = 1,
@@ -70,6 +70,8 @@ def lines_from_gray_img(
     if segments is None:
         return []
     
+    if return_canny:
+        return [Line.from_hough_segment(*segment) for segment in segments], edges
     return [Line.from_hough_segment(*segment) for segment in segments]
 
 
@@ -666,3 +668,40 @@ def line_and_line_segments_intersections(
         if intersection is not None and point_on_segment(intersection.point, segment):
             intersections.append(intersection)
     return intersections[0] if intersections else None
+
+
+def mask_line_neighborhood_on_edges(
+    img: ArrayLike,
+    edges: ArrayLike,
+    mask: ArrayLike,
+) -> ArrayLike:
+    mask_img = np.zeros_like(img)
+    mask_img[edges > 0] = (255, 255, 255)
+    mask_img[mask] = (255, 255, 0)
+    mask_img = np.where(np.dstack([edges & mask] * 3), (255, 0, 0), mask_img)
+    return mask_img
+
+
+def fill_missing_lines(
+    items: list[tuple[Line | None, tuple[int, int]]]
+) -> list[tuple[Line, tuple[int, int]]]:
+    valid_indices = [
+        i for i, (line, _) in enumerate(items)
+        if line is not None
+    ]
+
+    if not valid_indices:
+        return items
+
+    result = []
+
+    for i, (line, interval) in enumerate(items):
+        if line is None:
+            nearest_i = min(valid_indices, key=lambda j: abs(j - i))
+            intercept = items[nearest_i][0].intercept
+
+            line = Line(slope=0.0, intercept=intercept)
+
+        result.append((line, interval))
+
+    return result

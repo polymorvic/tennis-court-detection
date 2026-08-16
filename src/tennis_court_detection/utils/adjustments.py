@@ -16,7 +16,7 @@ from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.filters import filter_horizontal_lines
 from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img
 from tennis_court_detection.utils.validators import check_if_numpy_image, exceeds_empty_threshold
-from tennis_court_detection.schemas.config import Direction
+from tennis_court_detection.schemas.config import Direction, LinePosition
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 
 
@@ -100,34 +100,57 @@ def traverse_horizontal_line(
     upper_canny_thresh: int = 100,
     hough_thresh_ratio: float = 0.8,
     min_line_len_ratio: float = 0.4,
-    max_line_gap_ratio: float = 0.1
+    max_line_gap_ratio: float = 0.1,
+    line_position: LinePosition = LinePosition.BOTTOM,
+    horizontal_static: bool = True,
+    to_center: bool = False
 ) -> tuple[list[Line], list[tuple[int, int]]]:
     img = check_if_numpy_image(img)
     p_c = Point((p_left.x + p_right.x) // 2, p_left.y)
     step = int(img.width * step_ratio)
     h_delta = int(img.height * h_delta_ratio)
 
-    if direction == Direction.LEFT:
-        x1 = p_c.x - step
-        x2 = p_c.x
+    position_index = {
+        LinePosition.TOP: 0, 
+        LinePosition.BOTTOM: -1
+    }[line_position]
+
+    if not to_center:
+        if direction == Direction.LEFT:
+            x1 = p_c.x - step
+            x2 = p_c.x
+        else:
+            x1 = p_c.x 
+            x2 = p_c.x + step
     else:
-        x1 = p_c.x 
-        x2 = p_c.x + step
+        if direction == Direction.LEFT:
+            x1 = p_left.x
+            x2 = p_left.x + step
+        else:
+            x1 = p_right.x - step
+            x2 = p_right.x
         
     img_copy = img.copy()
     img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    # x_diff = abs(p_c.x - p_left.x)
-    # expected_segment_count = math.ceil(x_diff / step) + 1
-
-    # print(f"{expected_segment_count=}")
     
     lines = []
     segment_xs = []
-    while {'left': x2 > p_left.x, 'right': x1 < p_right.x}[direction]:
+    y1 = p_c.y - h_delta
+    y2 = p_c.y + h_delta
+    while (
+        {Direction.LEFT: x2 > p_left.x, Direction.RIGHT: x1 < p_right.x}[direction]
+        if not to_center
+        else {Direction.LEFT: x1 < p_c.x, Direction.RIGHT: x2 > p_c.x}[direction]
+    ):
 
-        crop = img[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
-        crop_gray = img_gray[p_c.y - h_delta: p_c.y + h_delta, x1: x2]
+        y_c =  (y2 + y1) // 2
+
+        crop = img[y1: y2, x1: x2]
+        crop_gray = img_gray[y1: y2, x1: x2]
+
+        if crop.size == 0:
+            break
 
         edges = cv2.Canny(crop_gray, lower_canny_thresh, upper_canny_thresh)
         segments = cv2.HoughLinesP(
@@ -157,9 +180,9 @@ def traverse_horizontal_line(
         
         sub_lines = filter_horizontal_lines(sub_lines)
         if sub_lines:
-            bottom_line = sorted(sub_lines, key = lambda line: line.intercept)[-1]
-            bottom_line_global = transform_line(bottom_line, crop, x1, p_c.y - h_delta)
-            lines.append(bottom_line_global)
+            searched_line = sorted(sub_lines, key = lambda line: line.intercept)[position_index]
+            searched_line_global = transform_line(searched_line, crop, x1, y1)
+            lines.append(searched_line_global)
         else:
             lines.append(None)
 
@@ -168,28 +191,63 @@ def traverse_horizontal_line(
 
         if get_debug_mode():
             display_img(crop_copy)
-            cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
+            cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
-        if direction == 'left':
-            x2 = x1
-            x1 -= step
-            
+        if not to_center:
+            if direction == Direction.LEFT:
+                x2 = x1
+                x1 -= step
+            elif direction == Direction.RIGHT:
+                x1 = x2
+                x2 += step
         else:
-            x1 = x2
-            x2 += step
+            if direction == Direction.LEFT:
+                x1 = x2
+                x2 += step
+            elif direction == Direction.RIGHT:
+                x2 = x1
+                x1 -= step
 
+        if sub_lines and not horizontal_static:
+            y_diff = int(searched_line_global.intercept) - y_c
+            y1 += y_diff
+            y2 += y_diff
+
+    if get_debug_mode():
+        display_img(crop_copy)
+        cv2.rectangle(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        display_img(img_copy)
+
+    return lines, segment_xs
+
+
+def traverse_with_validation_and_interpolation(
+    img: np.ndarray,
+    p_left: Point,
+    p_right: Point,
+    direction: Direction,
+    step_ratio: float = 0.026,
+    h_delta_ratio: float = 0.0186,
+    lower_canny_thresh: int = 20,
+    upper_canny_thresh: int = 100,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.4,
+    max_line_gap_ratio: float = 0.1,
+    line_position: LinePosition = LinePosition.BOTTOM,
+    horizontal_static: bool = True,   
+):
+    lines, segment_xs = traverse_horizontal_line(
+        img, p_left, p_right, direction,
+        step_ratio, h_delta_ratio,
+        lower_canny_thresh, upper_canny_thresh,
+        hough_thresh_ratio, min_line_len_ratio, max_line_gap_ratio,
+        line_position, horizontal_static
+    )
 
     if exceeds_empty_threshold(lines):
         raise NotEnoughLineSegmentsFound()
 
     interpolated_lines = interpolate_lines_intercept(lines)
-
-    if get_debug_mode():
-        print(f'before adjust: {interpolated_lines=}')
-        print(f'after adjust: {interpolated_lines=}')
-        display_img(crop_copy)
-        cv2.rectangle(img_copy, (x1, p_c.y - h_delta), (x2, p_c.y + h_delta), (0, 255, 0), 2)
-        display_img(img_copy)
 
     return interpolated_lines, segment_xs
 
@@ -199,15 +257,19 @@ def adjust_horizontal_line(
     left_point: Point,
     right_point: Point,
     step_ratio: float = 0.026,
-    height_delta_ratio: float = 0.0186
+    height_delta_ratio: float = 0.0186,
+    line_position: LinePosition = LinePosition.BOTTOM,
+    horizontal_static: bool = True
 ) -> list[LineSegment]:
-    lines_left, xs_left = traverse_horizontal_line(
+    lines_left, xs_left = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.LEFT,
-        step_ratio, height_delta_ratio
+        step_ratio, height_delta_ratio, line_position=line_position, 
+        horizontal_static=horizontal_static
     )
-    lines_right, xs_right = traverse_horizontal_line(
+    lines_right, xs_right = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.RIGHT,
-        step_ratio, height_delta_ratio
+        step_ratio, height_delta_ratio, line_position=line_position,
+        horizontal_static=horizontal_static
     )
 
     pairs = list(zip(lines_left + lines_right, xs_left + xs_right))
