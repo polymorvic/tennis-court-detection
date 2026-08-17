@@ -109,15 +109,18 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
         return cleaned
     
 
-    def validate(self) -> None:
+    def validate(self) -> list[str]:
         if not self.cleaned_annotations:
             raise ValueError("Clean annotations not set")
 
+        invalid_names = []
         for name, ann in self.cleaned_annotations.items():
             labels = [kp.label for kp in ann.key_points]
             unique_count = len(set(labels))
             if unique_count != len(TennisCourtKeyPointLabel) or unique_count != len(labels):
-                print(name)
+                invalid_names.append(name)
+
+        return invalid_names
     
 
     def _concat_files(self, extension: str = 'json') -> _RawAnnotations:
