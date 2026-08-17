@@ -7,9 +7,11 @@ import tyro
 from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.utils.annotations import TennisCourtAnnotationCollection
 from tennis_court_detection.utils.testing import (
-    put_text_boxes_overlap, 
-    build_output_dir
+    put_text_boxes_overlap,
+    build_output_dir,
+    group_pics_by_match
 )
+
 
 def run(
     test_type: TestType = TestType.ANNOTATIONS,
@@ -19,15 +21,38 @@ def run(
 ):
     annotations_obj = TennisCourtAnnotationCollection.from_raw_dir(raw_annotations_dir)
     clean_annotations = annotations_obj.cleaned_annotations
-
     invalid_names = annotations_obj.validate()
 
     proj_cwd = Path.cwd()
     images_dir = proj_cwd / images_dir
     test_out_dir = build_output_dir(proj_cwd / output_dir, test_type)
 
-    invalid_file = test_out_dir / 'invalid_annotations.txt'
-    invalid_file.write_text('\n'.join(invalid_names), encoding='utf-8')
+    match_numbers = {pic_name.split('_')[0] for pic_name in clean_annotations.keys()}
+    annotated_pics_collection = group_pics_by_match(clean_annotations.keys())
+
+    source_pics_collection = group_pics_by_match([pic.name for pic in images_dir.glob('*.png')], match_numbers)
+
+    missing_names = []
+    for match_number, source_pics in source_pics_collection.items():
+        annotated_pics = annotated_pics_collection.get(
+            match_number,
+            []
+        )
+
+        missing_names.extend(set(source_pics) - set(annotated_pics))
+
+    missing_names = sorted(missing_names)
+    issues_file = test_out_dir / 'annotation_issues.txt'
+
+    issues = [
+        'INVALID:',
+        *sorted(invalid_names),
+        '',
+        'MISSING:',
+        *missing_names,
+    ]
+
+    issues_file.write_text('\n'.join(issues), encoding='utf-8')
 
     for pic_name, annotation in tqdm(sorted(clean_annotations.items())):
         img_path = images_dir / pic_name
@@ -46,7 +71,10 @@ def run(
         filename_thickness = 2
         filename_padding = 8
 
-        (filename_w, filename_h), filename_baseline = cv2.getTextSize(
+        (
+            (filename_w, filename_h),
+            filename_baseline
+        ) = cv2.getTextSize(
             pic_name,
             filename_font,
             filename_font_scale,
@@ -60,7 +88,10 @@ def run(
             filename_x,
             filename_y,
             filename_x + filename_w + 2 * filename_padding,
-            filename_y + filename_h + filename_baseline + 2 * filename_padding
+            filename_y
+            + filename_h
+            + filename_baseline
+            + 2 * filename_padding
         )
 
         cv2.rectangle(
@@ -71,7 +102,6 @@ def run(
             -1
         )
 
-
         cv2.putText(
             image,
             pic_name,
@@ -81,7 +111,11 @@ def run(
             ),
             filename_font,
             filename_font_scale,
-            (255, 255, 255) if pic_name not in invalid_names else (0, 0, 255),
+            (
+                (255, 255, 255)
+                if pic_name not in invalid_names
+                else (0, 0, 255)
+            ),
             filename_thickness,
             cv2.LINE_AA
         )
@@ -118,9 +152,9 @@ def run(
             )
 
             offsets = [
-                (5, -5),           
-                (5, text_h + 5),      
-                (-text_w - 5, -5),      
+                (5, -5),
+                (5, text_h + 5),
+                (-text_w - 5, -5),
                 (-text_w - 5, text_h + 5),
                 (5, -text_h - 10),
                 (5, 2 * text_h + 10),
@@ -184,12 +218,8 @@ def run(
             )
 
         is_invalid = pic_name in invalid_names
-        pic_name, pic_extension = pic_name.rsplit('.', 1)
-        pic_name_save = (
-            f'{pic_name}_invalid.{pic_extension}'
-            if is_invalid
-            else f'{pic_name}.{pic_extension}'
-        )
+        pic_stem, pic_extension = pic_name.rsplit('.', 1)
+        pic_name_save = f'{pic_stem}_invalid.{pic_extension}' if is_invalid else f'{pic_stem}.{pic_extension}'
         output_path = test_out_dir / pic_name_save
 
         cv2.imwrite(str(output_path), image)
