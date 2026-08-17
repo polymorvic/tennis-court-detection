@@ -19,6 +19,9 @@ class TennisCourtKeyPointLabel(StrEnum):
     right_service_netline_point = "right_service_netline_point"
     left_centre_service_point = "left_centre_service_point"
     right_centre_service_point = "right_centre_service_point"
+    left_top_netline_point = "left_top_netline_point"
+    right_top_netline_point = "right_top_netline_point"
+    middle_top_netline_point = "middle_top_netline_point"
 
 
     @classmethod
