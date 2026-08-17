@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+from typing import TypeAlias
 
 import cv2
 import numpy as np
@@ -197,9 +198,11 @@ def put_text_boxes_overlap(
     )
 
 
+StringCollection: TypeAlias = list[str] | tuple[str] | set[str]
+
 def group_pics_by_match(
     pic_names: list[str],
-    match_numbers: set[str] | None = None
+    match_numbers: StringCollection | None = None
 ) -> dict[str, list[str]]:
     groups = {
         pic_name.split('_')[0]
