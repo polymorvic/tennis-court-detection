@@ -178,3 +178,21 @@ def draw_results_on_img(
 
     cv2.imwrite(str(Path(output_path) / filename), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
 
+
+Box = tuple[int, int, int, int]
+
+def put_text_boxes_overlap(
+    box1: Box, 
+    box2: Box, 
+    margin: int = 3
+) -> bool:
+    x1, y1, x2, y2 = box1
+    a1, b1, a2, b2 = box2
+
+    return not (
+        x2 + margin < a1
+        or a2 + margin < x1
+        or y2 + margin < b1
+        or b2 + margin < y1
+    )
+
