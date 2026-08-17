@@ -196,3 +196,25 @@ def put_text_boxes_overlap(
         or b2 + margin < y1
     )
 
+
+def group_pics_by_match(
+    pic_names: list[str],
+    match_numbers: set[str] | None = None
+) -> dict[str, list[str]]:
+    groups = {
+        pic_name.split('_')[0]
+        for pic_name in pic_names
+    }
+
+    if match_numbers is not None:
+        groups &= match_numbers
+
+    return {
+        match_number: sorted(
+            pic_name
+            for pic_name in pic_names
+            if pic_name.split('_')[0] == match_number
+        )
+        for match_number in sorted(groups)
+    }
+
