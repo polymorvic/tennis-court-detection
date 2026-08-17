@@ -11,6 +11,8 @@ from tennis_court_detection.schemas.annotations import (
 )
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.common import ArrayLike
+
+from tennis_court_detection.utils.testing import layout_is_valid
     
 
 def transform_keypoint_annotation(
@@ -118,6 +120,9 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
             labels = [kp.label for kp in ann.key_points]
             unique_count = len(set(labels))
             if unique_count != len(TennisCourtKeyPointLabel) or unique_count != len(labels):
+                invalid_names.append(name)
+
+            elif not layout_is_valid(ann):
                 invalid_names.append(name)
 
         return invalid_names
