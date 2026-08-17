@@ -19,7 +19,7 @@ from cvgeomkit.utils.helpers import read_image_as_numpyimage
 
 
 def run(
-    test_type: TestType,
+    test_type: TestType = TestType.KEY_POINTS,
     pics_path: Path | str = 'data/pics',
     params_path: Path | str = 'config/process_params.config.json',
     blacklist_path: Path | str = 'config/pics_blacklist.config.yaml',

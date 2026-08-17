@@ -181,7 +181,10 @@ def angle_between_lines(
     return (line_angle(line2) - line_angle(line1)) % 360
 
 
-def pipette_color(image: np.ndarray, k: int = 4) -> tuple[int, int, int]:
+def pipette_color(
+    image: np.ndarray, 
+    k: int = 4
+) -> tuple[int, int, int]:
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError("Expected HSV image with 3 channels")
 

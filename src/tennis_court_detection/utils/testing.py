@@ -1,11 +1,13 @@
 from datetime import datetime
 from pathlib import Path
+from typing import TypeAlias
 
 import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from tennis_court_detection.schemas.annotations import ImageAnnotation, TennisCourtKeyPointLabel
 from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.utils.validators import check_if_numpy_image
 from tennis_court_detection.schemas.config import Surface
@@ -25,7 +27,6 @@ def get_surface_from_filename(filename: str) -> Surface:
         return Surface.GRASS 
     
     return Surface.HARD
-
 
 
 def build_output_dir(parent_dir: str | Path, test_type: TestType) -> Path:
@@ -177,4 +178,123 @@ def draw_results_on_img(
     )
 
     cv2.imwrite(str(Path(output_path) / filename), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+
+
+Box = tuple[int, int, int, int]
+
+def put_text_boxes_overlap(
+    box1: Box, 
+    box2: Box, 
+    margin: int = 3
+) -> bool:
+    x1, y1, x2, y2 = box1
+    a1, b1, a2, b2 = box2
+
+    return not (
+        x2 + margin < a1
+        or a2 + margin < x1
+        or y2 + margin < b1
+        or b2 + margin < y1
+    )
+
+
+StringCollection: TypeAlias = list[str] | tuple[str] | set[str]
+
+def group_pics_by_match(
+    pic_names: list[str],
+    match_numbers: StringCollection | None = None
+) -> dict[str, list[str]]:
+    groups = {
+        pic_name.split('_')[0]
+        for pic_name in pic_names
+    }
+
+    if match_numbers is not None:
+        groups &= match_numbers
+
+    return {
+        match_number: sorted(
+            pic_name
+            for pic_name in pic_names
+            if pic_name.split('_')[0] == match_number
+        )
+        for match_number in sorted(groups)
+    }
+
+
+def layout_is_valid(
+    ann: ImageAnnotation
+) -> bool:
+    p = {kp.label: kp.coordinates for kp in ann.key_points}
+    x = lambda lbl: p[lbl].x
+    y = lambda lbl: p[lbl].y
+
+    L = TennisCourtKeyPointLabel
+
+    baseline_x = (
+        x(L.left_outer_baseline_point)
+        < x(L.left_inner_baseline_point)
+        < x(L.right_inner_baseline_point)
+        < x(L.right_outer_baseline_point)
+    )
+    service_x = (
+        x(L.left_service_point)
+        < x(L.left_centre_service_point)
+        < x(L.right_centre_service_point)
+        < x(L.right_service_point)
+    )
+    netline_x = (
+        x(L.left_outer_netline_point)
+        < x(L.left_inner_netline_point)
+        < x(L.left_service_netline_point)
+        < x(L.right_service_netline_point)
+        < x(L.right_inner_netline_point)
+        < x(L.right_outer_netline_point)
+    )
+    top_net_x = (
+        x(L.left_top_netline_point)
+        < x(L.middle_top_netline_point)
+        < x(L.right_top_netline_point)
+    )
+    others = [c for lbl, c in p.items() if lbl is not L.left_outer_baseline_point]
+    leftmost = all(x(L.left_outer_baseline_point) < c.x for c in others)
+    others = [c for lbl, c in p.items() if lbl is not L.right_outer_baseline_point]
+    rightmost = all(x(L.right_outer_baseline_point) > c.x for c in others)
+    top_net_ys = (
+        y(L.left_top_netline_point),
+        y(L.middle_top_netline_point),
+        y(L.right_top_netline_point),
+    )
+    netline_ys = (
+        y(L.left_outer_netline_point),
+        y(L.left_inner_netline_point),
+        y(L.left_service_netline_point),
+        y(L.right_service_netline_point),
+        y(L.right_inner_netline_point),
+        y(L.right_outer_netline_point),
+    )
+    service_ys = (
+        y(L.left_service_point),
+        y(L.left_centre_service_point),
+        y(L.right_centre_service_point),
+        y(L.right_service_point),
+    )
+    baseline_ys = (
+        y(L.left_outer_baseline_point),
+        y(L.left_inner_baseline_point),
+        y(L.right_inner_baseline_point),
+        y(L.right_outer_baseline_point),
+    )
+    bands_y = (
+        max(top_net_ys) < min(netline_ys)
+        and max(netline_ys) < min(service_ys)
+        and max(service_ys) < min(baseline_ys)
+    )
+    flare = (
+        x(L.left_outer_netline_point) > x(L.left_outer_baseline_point)
+        and x(L.left_inner_netline_point) > x(L.left_service_point) > x(L.left_inner_baseline_point)
+        and x(L.right_inner_netline_point) < x(L.right_service_point) < x(L.right_inner_baseline_point)
+        and x(L.right_outer_netline_point) < x(L.right_outer_baseline_point)
+    )
+    return baseline_x and service_x and netline_x and top_net_x and leftmost and rightmost and bands_y and flare
 
