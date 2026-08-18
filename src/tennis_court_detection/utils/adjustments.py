@@ -1,6 +1,3 @@
-import math
-from typing import Literal
-
 import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.geometry.intersections import Intersection
@@ -234,14 +231,15 @@ def traverse_with_validation_and_interpolation(
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
     line_position: LinePosition = LinePosition.BOTTOM,
-    horizontal_static: bool = True,   
+    horizontal_static: bool = True,  
+    to_center: bool = False 
 ):
     lines, segment_xs = traverse_horizontal_line(
         img, p_left, p_right, direction,
         step_ratio, h_delta_ratio,
         lower_canny_thresh, upper_canny_thresh,
         hough_thresh_ratio, min_line_len_ratio, max_line_gap_ratio,
-        line_position, horizontal_static
+        line_position, horizontal_static, to_center=to_center
     )
 
     if exceeds_empty_threshold(lines):
@@ -259,17 +257,18 @@ def adjust_horizontal_line(
     step_ratio: float = 0.026,
     height_delta_ratio: float = 0.0186,
     line_position: LinePosition = LinePosition.BOTTOM,
-    horizontal_static: bool = True
+    horizontal_static: bool = True,
+    to_center: bool = False
 ) -> list[LineSegment]:
     lines_left, xs_left = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.LEFT,
         step_ratio, height_delta_ratio, line_position=line_position, 
-        horizontal_static=horizontal_static
+        horizontal_static=horizontal_static, to_center=to_center
     )
     lines_right, xs_right = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.RIGHT,
         step_ratio, height_delta_ratio, line_position=line_position,
-        horizontal_static=horizontal_static
+        horizontal_static=horizontal_static, to_center=to_center
     )
 
     pairs = list(zip(lines_left + lines_right, xs_left + xs_right))
