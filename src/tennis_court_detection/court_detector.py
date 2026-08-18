@@ -558,8 +558,6 @@ class CourtDetector:
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
         roi_trim_ratio: float = 0.1,
-        line_intercept_std_ratio: float = 0.02,
-        white_column_ratio_thresh: float = 0.5
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
