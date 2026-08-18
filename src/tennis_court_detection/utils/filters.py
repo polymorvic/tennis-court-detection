@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike, Numeric, NumpyImage
 from cvgeomkit.geometry.points import Point
-from cvgeomkit.geometry.segments import LineSegment
+from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from cvgeomkit.geometry.intersections import Intersection, transform_intersection
 from tennis_court_detection.schemas.config import Axis, ServiceSide
 from cvgeomkit.geometry.lines import Line, transform_line
@@ -428,4 +428,75 @@ def filter_lines_by_mirror(
                 accepted_lines_intersections.append(intersect)
 
     return accepted_lines_intersections
+
+
+def filter_line_segments_by_edges_mask(
+    roi: ArrayLike,
+    edges: ArrayLike,
+    line_segments_all: list[LineSegment],
+    h_margin_img_ratio: float = 0.05,
+    w_margin_img_ratio: float = 0.1,
+    white_column_ratio_thresh: float = 0.75
+) -> list[LineSegment]:
+    roi = check_if_numpy_image(roi)
+    h_margin_px = int(h_margin_img_ratio * roi.height)
+    w_margin_px = int(w_margin_img_ratio * roi.width)
+
+    roi = NumpyImage(roi[:, w_margin_px:-w_margin_px])
+    edges = NumpyImage(edges[:, w_margin_px:-w_margin_px])
+
+    line_segments_all_local = [
+        [
+            transform_line_segment(segment, w_margin_px, 0, to_global=False)
+            for segment in line_segments
+        ] for line_segments in line_segments_all
+    ]
+
+    accepted_line_segments = []
+    for line_segments in line_segments_all_local:
+
+        mask = np.zeros(
+            (roi.height, roi.width),
+            dtype=np.uint8
+        )
+
+        roi_copy = roi.copy()
+        for segments in line_segments:
+
+            x_start = segments.start.x
+            x_end = segments.end.x
+            y_start = segments.start.y - h_margin_px
+            y_end = segments.end.y + h_margin_px
+
+            cv2.rectangle(mask, (x_start, y_start), (x_end, y_end), 255, -1)
+
+            cv2.rectangle(
+                roi_copy,
+                (x_start, y_start),
+                (x_end, y_end),
+                (0, 255, 0),
+                1
+            )
+        display_img(roi_copy)
+
+        edges_copy = edges.copy()
+        edges_copy[mask == 0] = 0
+
+        white_columns_ratio = calculate_white_columns_ratio(edges_copy, mask)
+
+        mask_img = mask_line_neighborhood_on_edges(
+            roi,
+            edges_copy,
+            mask.astype(bool)
+        )
+
+        display_img(mask_img)
+        print(f"white_columns_ratio: {white_columns_ratio}")
+
+        if white_columns_ratio > white_column_ratio_thresh:
+            accepted_line_segments.append(line_segments)
+
+    return accepted_line_segments
+
+            
 
