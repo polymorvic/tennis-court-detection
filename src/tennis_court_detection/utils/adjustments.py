@@ -639,7 +639,7 @@ def traverse_along_line(
     guide_line: Line,
     direction: Direction,
     step_ratio: float = 0.026,
-    h_delta_ratio: float = 0.0186,
+    h_delta_ratio: float = 0.05,
     hough_thresh_ratio: float = 0.8,
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
@@ -790,18 +790,13 @@ def traverse_along_line(
             lines.append(searched_line_global)
 
         else:
-            lines.append(None)
+            lines.append(guide_line)
 
         segment_xs.append(
             (min(x1_crop, x2_crop), max(x1_crop, x2_crop))
         )
 
-        set_debug_mode(True)
-
         if get_debug_mode():
-            # display_img(crop_edges)
-            # display_img(crop_copy)
-
             cv2.rectangle(
                 img_copy,
                 (x1_crop, y1),
@@ -820,8 +815,6 @@ def traverse_along_line(
     if get_debug_mode():
         display_img(img_copy)
 
-    set_debug_mode(False)
-
     return lines, segment_xs
 
 
@@ -830,15 +823,12 @@ def traverse_v_shaped_line_pairs(
     edges: np.ndarray,
     intersection: Intersection,
     step_ratio: float = 0.026,
-    h_delta_ratio: float = 0.0186,
+    h_delta_ratio: float = 0.05,
     hough_thresh_ratio: float = 0.8,
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
     angle_tolerance_deg: float = 15
-) -> tuple[
-    tuple[list[Line | None], list[tuple[int, int]]],
-    tuple[list[Line | None], list[tuple[int, int]]]
-]:
+) -> list[LineSegment]:
 
     img = check_if_numpy_image(img)
 
@@ -887,7 +877,29 @@ def traverse_v_shaped_line_pairs(
         angle_tolerance_deg=angle_tolerance_deg
     )
 
-    return (
-        (left_lines, left_xs),
-        (right_lines, right_xs)
+    line_and_x_pairs = list(zip(
+        left_lines + right_lines,
+        left_xs + right_xs
+    ))
+
+    line_and_x_pairs.sort(
+        key=lambda pair: (pair[1][0] + pair[1][1]) / 2
     )
+
+    line_segments = []
+    for line, (x_start, x_end) in line_and_x_pairs:
+
+        ls = LineSegment.from_tuples(
+            start=(
+                x_start,
+                int(line.slope * x_start + line.intercept)
+            ),
+            end=(
+                x_end,
+                int(line.slope * x_end + line.intercept)
+            )
+        )
+
+        line_segments.append(ls)
+
+    return line_segments
