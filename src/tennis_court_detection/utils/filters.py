@@ -436,7 +436,7 @@ def filter_line_segments_by_edges_mask(
     line_segments_all: list[LineSegment],
     h_margin_img_ratio: float = 0.05,
     w_margin_img_ratio: float = 0.1
-) -> list[LineSegment]:
+) -> tuple[list[list[LineSegment]], list[float]]:
     roi = check_if_numpy_image(roi)
     h_margin_px = int(h_margin_img_ratio * roi.height)
     w_margin_px = int(w_margin_img_ratio * roi.width)
@@ -453,7 +453,10 @@ def filter_line_segments_by_edges_mask(
 
     accepted_line_segments = []
     white_column_ratios = []
-    for line_segments in line_segments_all_local:
+    for original_line_segments, line_segments in zip(
+        line_segments_all,
+        line_segments_all_local,
+    ):
 
         mask = np.zeros(
             (roi.height, roi.width),
@@ -511,12 +514,7 @@ def filter_line_segments_by_edges_mask(
             print(f"white_columns_ratio: {white_columns_ratio}")
 
         white_column_ratios.append(white_columns_ratio)
-        accepted_line_segments.append(
-            [
-                transform_line_segment(segment, w_margin_px, 0)
-                for segment in line_segments
-            ]
-        )
+        accepted_line_segments.append(original_line_segments)
 
     return accepted_line_segments, white_column_ratios
 
