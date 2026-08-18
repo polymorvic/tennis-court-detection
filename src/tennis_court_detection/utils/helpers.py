@@ -685,7 +685,7 @@ def mask_line_neighborhood_on_edges(
     return mask_img
 
 
-def fill_missing_lines(
+def get_intercept_from_neighbour(
     items: list[tuple[Line | None, tuple[int, int]]]
 ) -> list[tuple[Line, tuple[int, int]]]:
     valid_indices = [

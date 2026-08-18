@@ -12,6 +12,7 @@ from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from tennis_court_detection.schemas.config import LinePosition, ServiceSide, Surface, Direction
 from tennis_court_detection.utils.helpers import (
     crop_center_img,
+    get_intercept_from_neighbour,
     line_segments_intersections, 
     lines_from_gray_img,
     get_next_intersection_by_margin, 
@@ -25,8 +26,7 @@ from tennis_court_detection.utils.helpers import (
     create_reference_court,
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
     pair_2_vertical_lines_by_distance,
-    line_and_line_segments_intersections,
-    fill_missing_lines
+    line_and_line_segments_intersections
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -609,7 +609,7 @@ class CourtDetector:
                     to_center=True
                 )
             left_segments = sorted(zip(left_lines, left_segments_xs), key=lambda x: x[1][0])
-            left_segments_filled = fill_missing_lines(left_segments)
+            left_segments_filled = get_intercept_from_neighbour(left_segments)
 
             right_lines, right_segments_xs = traverse_horizontal_line(
                     roi, 
@@ -623,10 +623,10 @@ class CourtDetector:
                     to_center=True
                 )
             right_segments = sorted(zip(right_lines, right_segments_xs), key=lambda x: x[1][0])
-            right_segments_filled = fill_missing_lines(right_segments)
+            right_segments_filled = get_intercept_from_neighbour(right_segments)
 
             segments_filled = left_segments_filled + right_segments_filled
-            segments_filled = fill_missing_lines(segments_filled)
+            segments_filled = get_intercept_from_neighbour(segments_filled)
 
             if all(item[0] is None for item in segments_filled):
                 continue
