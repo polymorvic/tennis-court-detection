@@ -460,7 +460,9 @@ def filter_line_segments_by_edges_mask(
             dtype=np.uint8
         )
 
-        roi_copy = roi.copy()
+        if get_debug_mode():
+            roi_copy = roi.copy()
+
         for segments in line_segments:
 
             x_start = segments.start.x
@@ -470,28 +472,32 @@ def filter_line_segments_by_edges_mask(
 
             cv2.rectangle(mask, (x_start, y_start), (x_end, y_end), 255, -1)
 
-            cv2.rectangle(
-                roi_copy,
-                (x_start, y_start),
-                (x_end, y_end),
-                (0, 255, 0),
-                1
-            )
-        display_img(roi_copy)
+            if get_debug_mode():
+                cv2.rectangle(
+                    roi_copy,
+                    (x_start, y_start),
+                    (x_end, y_end),
+                    (0, 255, 0),
+                    1
+                )
+
+        if get_debug_mode():
+            display_img(roi_copy)
 
         edges_copy = edges.copy()
         edges_copy[mask == 0] = 0
 
         white_columns_ratio = calculate_white_columns_ratio(edges_copy, mask)
 
-        mask_img = mask_line_neighborhood_on_edges(
-            roi,
-            edges_copy,
-            mask.astype(bool)
-        )
+        if get_debug_mode():
+            mask_img = mask_line_neighborhood_on_edges(
+                roi,
+                edges_copy,
+                mask.astype(bool)
+            )
 
-        display_img(mask_img)
-        print(f"white_columns_ratio: {white_columns_ratio}")
+            display_img(mask_img)
+            print(f"white_columns_ratio: {white_columns_ratio}")
 
         if white_columns_ratio > white_column_ratio_thresh:
             accepted_line_segments.append(line_segments)
