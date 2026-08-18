@@ -465,10 +465,21 @@ def filter_line_segments_by_edges_mask(
 
         for segments in line_segments:
 
-            x_start = segments.start.x
-            x_end = segments.end.x
-            y_start = segments.start.y - h_margin_px
-            y_end = segments.end.y + h_margin_px
+            x_start, x_end = sorted(
+                (int(segments.start.x), int(segments.end.x))
+            )
+            y_start, y_end = sorted(
+                (int(segments.start.y), int(segments.end.y))
+            )
+
+            x_start = max(0, x_start)
+            x_end = min(roi.width - 1, x_end)
+
+            y_start = max(0, y_start - h_margin_px)
+            y_end = min(roi.height - 1, y_end + h_margin_px)
+
+            if x_start >= x_end or y_start >= y_end:
+                continue
 
             cv2.rectangle(mask, (x_start, y_start), (x_end, y_end), 255, -1)
 
