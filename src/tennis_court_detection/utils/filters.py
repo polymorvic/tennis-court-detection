@@ -4,7 +4,7 @@ from cvgeomkit.common import ArrayLike, Numeric, NumpyImage
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.segments import LineSegment
 from cvgeomkit.geometry.intersections import Intersection, transform_intersection
-from tennis_court_detection.schemas.config import ServiceSide
+from tennis_court_detection.schemas.config import Axis, ServiceSide
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.utils.plotting import display_img
 
@@ -16,6 +16,7 @@ from tennis_court_detection.utils.metrics import (
 )
 
 from tennis_court_detection.utils.helpers import (
+    get_mirror_line,
     lines_from_gray_img, 
     angle_between_lines, 
     make_odd_kernel_size,
@@ -388,4 +389,45 @@ def filter_horizontal_lines_by_white_pixels_segment_based(
             h_lines.append(line)
 
     return h_lines
+
+
+def filter_lines_by_mirror(
+    lines: list[Line],
+    img: ArrayLike,
+    x_tol_ratio: float = 0.05,
+) -> list[Intersection] | list[None]:
+    img = check_if_numpy_image(img)
+    x_tol_px = img.width * x_tol_ratio
+
+    accepted_lines_intersections = []
+    for line in lines:
+        mirror_line = get_mirror_line(line, img)
+
+        p1, p2 = line.limit_to_img(img)
+        p1_m, p2_m = mirror_line.limit_to_img(img)
+
+        if get_debug_mode():
+            roi_copy = img.copy()
+            cv2.line(roi_copy, p1, p2, (0, 255, 0), 3)
+            cv2.line(roi_copy, p1_m, p2_m, (0, 0, 255), 3)
+            display_img(roi_copy)
+
+        p_left, p_right = sorted([p1, p2], key=lambda p: p.x)
+        p_m_left, p_m_right = sorted([p1_m, p2_m], key=lambda p: p.x)
+
+        if intersect := line.intersection(mirror_line, img):
+            mid_x = (p1.x + p2.x) / 2
+
+            p_ref = p_left if line.slope > 0 else p_right
+            p_m_ref = p_m_left if mirror_line.slope > 0 else p_m_right
+
+            is_below = intersect.point.y > p_ref.y and intersect.point.y > p_m_ref.y
+            is_centered = abs(intersect.point.x - mid_x) <= x_tol_px
+
+            print(is_below, is_centered)
+
+            if is_below and is_centered:
+                accepted_lines_intersections.append(intersect)
+
+    return accepted_lines_intersections
 
