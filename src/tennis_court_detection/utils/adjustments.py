@@ -643,13 +643,19 @@ def traverse_along_line(
     hough_thresh_ratio: float = 0.8,
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
-    angle_tolerance_deg: float = 15
+    angle_tolerance_deg: float = 15,
+    line_position: LinePosition = LinePosition.TOP
 ) -> tuple[list[Line | None], list[tuple[int, int]]]:
 
     img = check_if_numpy_image(img)
 
     if edges.shape[:2] != img.shape[:2]:
         raise ValueError("img and edges must have the same width and height")
+
+    position_index = {
+        LinePosition.TOP: 0,
+        LinePosition.BOTTOM: -1
+    }[line_position]
 
     step = max(1, int(img.width * step_ratio))
     h_delta = max(1, int(img.height * h_delta_ratio))
@@ -722,8 +728,6 @@ def traverse_along_line(
         crop_copy = crop.copy()
         candidates = []
 
-        x_c_local = crop.shape[1] // 2
-
         if segments is not None:
             for segment in segments:
 
@@ -757,27 +761,13 @@ def traverse_along_line(
                 if angle_diff > angle_tolerance_deg:
                     continue
 
-                guide_y = (
-                    guide_line_local.slope * x_c_local
-                    + guide_line_local.intercept
-                )
-
-                detected_y = (
-                    detected_line_local.slope * x_c_local
-                    + detected_line_local.intercept
-                )
-
-                distance = abs(detected_y - guide_y)
-
-                candidates.append(
-                    (distance, detected_line_local)
-                )
+                candidates.append(detected_line_local)
 
         if candidates:
-            _, searched_line_local = min(
+            searched_line_local = sorted(
                 candidates,
-                key=lambda item: item[0]
-            )
+                key=lambda line: line.intercept
+            )[position_index]
 
             searched_line_global = transform_line(
                 original_line=searched_line_local,
