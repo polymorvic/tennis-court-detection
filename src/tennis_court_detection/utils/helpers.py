@@ -708,3 +708,9 @@ def get_intercept_from_neighbour(
         result.append((line, interval))
 
     return result
+
+
+def check_if_all_segments_lines_none(
+    segments: list[tuple[Line | None, tuple[int, int]]]
+) -> bool:
+    return all(item[0] is None for item in segments)
