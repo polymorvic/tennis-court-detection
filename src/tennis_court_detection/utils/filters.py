@@ -433,7 +433,7 @@ def filter_lines_by_mirror(
 def filter_line_segments_by_edges_mask(
     roi: ArrayLike,
     edges: ArrayLike,
-    line_segments_all: list[LineSegment],
+    line_segments_all: list[list[LineSegment]],
     h_margin_img_ratio: float = 0.05,
     w_margin_img_ratio: float = 0.1
 ) -> tuple[list[list[LineSegment]], list[float]]:
@@ -453,10 +453,7 @@ def filter_line_segments_by_edges_mask(
 
     accepted_line_segments = []
     white_column_ratios = []
-    for original_line_segments, line_segments in zip(
-        line_segments_all,
-        line_segments_all_local,
-    ):
+    for line_segments in line_segments_all_local:
 
         mask = np.zeros(
             (roi.height, roi.width),
@@ -514,7 +511,10 @@ def filter_line_segments_by_edges_mask(
             print(f"white_columns_ratio: {white_columns_ratio}")
 
         white_column_ratios.append(white_columns_ratio)
-        accepted_line_segments.append(original_line_segments)
+        accepted_line_segments.append([
+            transform_line_segment(segment, w_margin_px, 0, to_global=True)
+            for segment in line_segments
+        ])
 
     return accepted_line_segments, white_column_ratios
 
