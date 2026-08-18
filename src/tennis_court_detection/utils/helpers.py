@@ -9,7 +9,7 @@ from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from cvgeomkit.geometry.intersections import Intersection, compute_intersections
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
-from tennis_court_detection.schemas.config import Params, PicsBlacklist, Direction
+from tennis_court_detection.schemas.config import Axis, Params, PicsBlacklist, Direction
 from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
 from tennis_court_detection.utils.constants import COURT_DIMENSIONS
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
@@ -714,3 +714,16 @@ def check_if_all_segments_lines_none(
     segments: list[tuple[Line | None, tuple[int, int]]]
 ) -> bool:
     return all(item[0] is None for item in segments)
+
+
+def get_mirror_line(
+    line: Line,
+    img: ArrayLike,
+    axis: Axis = Axis.VERTICAL
+) -> Line | None:
+    m, b = line.slope, line.intercept
+
+    if axis == Axis.VERTICAL:
+        return Line(-m, b + m * (img.width - 1))
+    elif axis == Axis.HORIZONTAL:
+        return Line(-m, (img.height - 1) - b)
