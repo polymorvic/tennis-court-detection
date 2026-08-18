@@ -657,15 +657,6 @@ class CourtDetector:
 
             display_img(roi_copy)
 
-        # h_lines = filter_horizontal_lines_by_white_pixels_segment_based(
-        #     roi,
-        #     edges,
-        #     initial_h_lines,
-        #     line_segments_all,
-        #     line_intercept_std_ratio = line_intercept_std_ratio,
-        #     white_column_ratio_thresh = white_column_ratio_thresh
-        # )
-
         h_lines = [line for line in initial_h_lines if line.slope !=0]
 
         if get_debug_mode():
@@ -716,13 +707,13 @@ class CourtDetector:
             line_segments_all
         )
 
-        print('line_segments_candidates', line_segments_candidates)
-        print(white_column_ratios)
-
         if not line_segments_candidates:
             return
 
-
         ranked_top_netline_candidates = sorted(zip(line_segments_candidates, white_column_ratios), key=lambda x: x[1], reverse=True)
 
-        return ranked_top_netline_candidates[0][0]
+        top_netline_segments = ranked_top_netline_candidates[0][0]
+        return [
+            transform_line_segment(segment, roi_origin_x, roi_origin_y, to_global=True)
+            for segment in top_netline_segments
+        ]
