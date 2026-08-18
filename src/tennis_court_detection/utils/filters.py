@@ -424,8 +424,6 @@ def filter_lines_by_mirror(
             is_below = intersect.point.y > p_ref.y and intersect.point.y > p_m_ref.y
             is_centered = abs(intersect.point.x - mid_x) <= x_tol_px
 
-            print(is_below, is_centered)
-
             if is_below and is_centered:
                 accepted_lines_intersections.append(intersect)
 
