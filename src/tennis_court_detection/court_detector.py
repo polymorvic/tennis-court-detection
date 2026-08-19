@@ -597,55 +597,6 @@ class CourtDetector:
         )
 
         initial_h_lines = filter_horizontal_lines(lines, slope_thresh=1)
-        line_segments_all = []
-        for line in initial_h_lines:
-
-            p1, p2 = line.limit_to_img(roi)
-            p_left, p_right = (p1, p2) if p1.x < p2.x else (p2, p1)
-
-            left_lines, left_segments_xs = traverse_horizontal_line(
-                    roi, 
-                    p_left, 
-                    p_right, 
-                    Direction.LEFT,
-                    h_delta_ratio=height_delta_ratio, 
-                    step_ratio=step_ratio, 
-                    line_position=LinePosition.TOP,
-                    horizontal_static=False,
-                    to_center=True
-                )
-            left_segments = sorted(zip(left_lines, left_segments_xs), key=lambda x: x[1][0])
-            left_segments_filled = get_intercept_from_neighbour(left_segments)
-
-            right_lines, right_segments_xs = traverse_horizontal_line(
-                    roi, 
-                    p_left, 
-                    p_right, 
-                    Direction.RIGHT,
-                    h_delta_ratio=height_delta_ratio, 
-                    step_ratio=step_ratio, 
-                    line_position=LinePosition.TOP,
-                    horizontal_static=False,
-                    to_center=True
-                )
-            right_segments = sorted(zip(right_lines, right_segments_xs), key=lambda x: x[1][0])
-            right_segments_filled = get_intercept_from_neighbour(right_segments)
-
-            segments_filled = left_segments_filled + right_segments_filled
-            segments_filled = get_intercept_from_neighbour(segments_filled)
-
-            if check_if_all_segments_lines_none(segments_filled):
-                continue
-
-            points_to_ls = [
-                ((start_x, int(line.intercept)), (end_x, int(line.intercept))) 
-                for line, (start_x, end_x) in segments_filled
-            ]
-
-            line_segments = [LineSegment.from_tuples(start=pt[0], end=pt[1]) for pt in points_to_ls]
-
-            line_segments_all.append(line_segments)
-
 
         if get_debug_mode():
             roi_copy = roi.copy()
@@ -699,7 +650,7 @@ class CourtDetector:
                     )
                 display_img(roi_copy)
 
-        line_segments_candidates, white_column_ratios = filter_line_segments_by_edges_mask(
+        line_segments_candidates, white_pixels_ratios = filter_line_segments_by_edges_mask(
             roi,
             edges,
             line_segments_all
@@ -708,7 +659,7 @@ class CourtDetector:
         if not line_segments_candidates:
             return
 
-        ranked_top_netline_candidates = sorted(zip(line_segments_candidates, white_column_ratios), key=lambda x: x[1], reverse=True)
+        ranked_top_netline_candidates = sorted(zip(line_segments_candidates, white_pixels_ratios), key=lambda x: x[1], reverse=True)
 
         top_netline_segments = ranked_top_netline_candidates[0][0]
         return [
