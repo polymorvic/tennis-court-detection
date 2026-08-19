@@ -672,6 +672,7 @@ def traverse_along_line(
         x1 = start_point.x
         x2 = x1 + step
 
+    candidates = []
     while (
         x2 > 0
         if direction == Direction.LEFT
@@ -685,10 +686,14 @@ def traverse_along_line(
 
         x_c = (x1_crop + x2_crop) // 2
 
-        y_c = int(
-            guide_line.slope * x_c
-            + guide_line.intercept
-        )
+        if candidates:
+            found_y_c = searched_line_global.intercept 
+            segment_height = y2 - y1
+            if abs(found_y_c - y_c) <= 2 * segment_height:
+                y_c = int(found_y_c)
+
+        else:
+            y_c = int(guide_line.slope * x_c + guide_line.intercept)
 
         if (
             y_c + h_delta <= 0
@@ -732,14 +737,12 @@ def traverse_along_line(
             for segment in segments:
 
                 if get_debug_mode():
-                    x1_hough, y1_hough, x2_hough, y2_hough = segment[0]
-
-                    cv2.line(
-                        crop_copy,
-                        (x1_hough, y1_hough),
-                        (x2_hough, y2_hough),
+                    cv2.rectangle(
+                        img_copy, 
+                        (x1, y1), 
+                        (x2, y2), 
                         (0, 255, 0),
-                        1
+                        2
                     )
 
                 detected_line_local = Line.from_hough_segment(
@@ -763,6 +766,9 @@ def traverse_along_line(
 
                 candidates.append(detected_line_local)
 
+            if get_debug_mode():
+                display_img(img_copy)
+
         if candidates:
             searched_line_local = sorted(
                 candidates,
@@ -782,18 +788,7 @@ def traverse_along_line(
         else:
             lines.append(guide_line)
 
-        segment_xs.append(
-            (min(x1_crop, x2_crop), max(x1_crop, x2_crop))
-        )
-
-        if get_debug_mode():
-            cv2.rectangle(
-                img_copy,
-                (x1_crop, y1),
-                (x2_crop, y2),
-                (0, 255, 0),
-                2
-            )
+        segment_xs.append((min(x1_crop, x2_crop), max(x1_crop, x2_crop)))
 
         if direction == Direction.LEFT:
             x2 = x1
@@ -803,6 +798,13 @@ def traverse_along_line(
             x2 += step
 
     if get_debug_mode():
+        cv2.rectangle(
+            img_copy,
+            (x1_crop, y1),
+            (x2_crop, y2),
+            (0, 255, 0),
+            2
+        )
         display_img(img_copy)
 
     return lines, segment_xs
