@@ -1,6 +1,3 @@
-import math
-from typing import Literal
-
 import cv2
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.geometry.intersections import Intersection
@@ -11,7 +8,7 @@ from cvgeomkit.common import ArrayLike
 import numpy as np
 from scipy.ndimage import median_filter
 
-from tennis_court_detection.config import get_debug_mode
+from tennis_court_detection.config import get_debug_mode, set_debug_mode
 from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.filters import filter_horizontal_lines
 from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img
@@ -234,14 +231,15 @@ def traverse_with_validation_and_interpolation(
     min_line_len_ratio: float = 0.4,
     max_line_gap_ratio: float = 0.1,
     line_position: LinePosition = LinePosition.BOTTOM,
-    horizontal_static: bool = True,   
+    horizontal_static: bool = True,  
+    to_center: bool = False 
 ):
     lines, segment_xs = traverse_horizontal_line(
         img, p_left, p_right, direction,
         step_ratio, h_delta_ratio,
         lower_canny_thresh, upper_canny_thresh,
         hough_thresh_ratio, min_line_len_ratio, max_line_gap_ratio,
-        line_position, horizontal_static
+        line_position, horizontal_static, to_center=to_center
     )
 
     if exceeds_empty_threshold(lines):
@@ -259,17 +257,18 @@ def adjust_horizontal_line(
     step_ratio: float = 0.026,
     height_delta_ratio: float = 0.0186,
     line_position: LinePosition = LinePosition.BOTTOM,
-    horizontal_static: bool = True
+    horizontal_static: bool = True,
+    to_center: bool = False
 ) -> list[LineSegment]:
     lines_left, xs_left = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.LEFT,
         step_ratio, height_delta_ratio, line_position=line_position, 
-        horizontal_static=horizontal_static
+        horizontal_static=horizontal_static, to_center=to_center
     )
     lines_right, xs_right = traverse_with_validation_and_interpolation(
         img, left_point, right_point, Direction.RIGHT,
         step_ratio, height_delta_ratio, line_position=line_position,
-        horizontal_static=horizontal_static
+        horizontal_static=horizontal_static, to_center=to_center
     )
 
     pairs = list(zip(lines_left + lines_right, xs_left + xs_right))
@@ -631,3 +630,268 @@ def adjust_net_line_segments(
     lines, segment_xs = map(list, zip(*pairs))
     lines = adjust_lines_intercept(lines)
     return build_segments(lines, segment_xs)
+
+
+def traverse_along_line(
+    img: np.ndarray,
+    edges: np.ndarray,
+    start_point: Point,
+    guide_line: Line,
+    direction: Direction,
+    step_ratio: float = 0.026,
+    h_delta_ratio: float = 0.05,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.4,
+    max_line_gap_ratio: float = 0.1,
+    angle_tolerance_deg: float = 15,
+    line_position: LinePosition = LinePosition.TOP
+) -> tuple[list[Line | None], list[tuple[int, int]]]:
+
+    img = check_if_numpy_image(img)
+
+    if edges.shape[:2] != img.shape[:2]:
+        raise ValueError("img and edges must have the same width and height")
+
+    position_index = {
+        LinePosition.TOP: 0,
+        LinePosition.BOTTOM: -1
+    }[line_position]
+
+    step = max(1, int(img.width * step_ratio))
+    h_delta = max(1, int(img.height * h_delta_ratio))
+
+    lines = []
+    segment_xs = []
+
+    img_copy = img.copy()
+
+    if direction == Direction.LEFT:
+        x2 = start_point.x
+        x1 = x2 - step
+    else:
+        x1 = start_point.x
+        x2 = x1 + step
+
+    candidates = []
+    while (
+        x2 > 0
+        if direction == Direction.LEFT
+        else x1 < img.width
+    ):
+        x1_crop = max(0, x1)
+        x2_crop = min(img.width, x2)
+
+        if x1_crop >= x2_crop:
+            break
+
+        x_c = (x1_crop + x2_crop) // 2
+
+        if candidates:
+            found_y_c = searched_line_global.intercept 
+            segment_height = y2 - y1
+            if abs(found_y_c - y_c) <= 2 * segment_height:
+                y_c = int(found_y_c)
+
+        else:
+            y_c = int(guide_line.slope * x_c + guide_line.intercept)
+
+        if (
+            y_c + h_delta <= 0
+            or y_c - h_delta >= img.height
+        ):
+            break
+
+        y1 = max(0, y_c - h_delta)
+        y2 = min(img.height, y_c + h_delta)
+
+        if y1 >= y2:
+            break
+
+        crop = img[y1:y2, x1_crop:x2_crop]
+        crop_edges = edges[y1:y2, x1_crop:x2_crop]
+
+        if crop.size == 0 or crop_edges.size == 0:
+            break
+
+        guide_line_local = transform_line(
+            original_line=guide_line,
+            original_img=img,
+            original_x_start=x1_crop,
+            original_y_start=y1,
+            to_global=False
+        )
+
+        segments = cv2.HoughLinesP(
+            crop_edges,
+            rho=1,
+            theta=np.pi / 180,
+            threshold=int(step * hough_thresh_ratio),
+            minLineLength=int(step * min_line_len_ratio),
+            maxLineGap=int(step * max_line_gap_ratio)
+        )
+
+        crop_copy = crop.copy()
+        candidates = []
+
+        if segments is not None:
+            for segment in segments:
+
+                if get_debug_mode():
+                    cv2.rectangle(
+                        img_copy, 
+                        (x1, y1), 
+                        (x2, y2), 
+                        (0, 255, 0),
+                        2
+                    )
+
+                detected_line_local = Line.from_hough_segment(
+                    segment[0]
+                )
+
+                guide_angle = np.degrees(
+                    np.arctan(guide_line_local.slope)
+                )
+
+                detected_angle = np.degrees(
+                    np.arctan(detected_line_local.slope)
+                )
+
+                angle_diff = abs(
+                    detected_angle - guide_angle
+                )
+
+                if angle_diff > angle_tolerance_deg:
+                    continue
+
+                candidates.append(detected_line_local)
+
+            if get_debug_mode():
+                display_img(img_copy)
+
+        if candidates:
+            searched_line_local = sorted(
+                candidates,
+                key=lambda line: line.intercept
+            )[position_index]
+
+            searched_line_global = transform_line(
+                original_line=searched_line_local,
+                original_img=crop,
+                original_x_start=x1_crop,
+                original_y_start=y1,
+                to_global=True
+            )
+
+            lines.append(searched_line_global)
+
+        else:
+            lines.append(guide_line)
+
+        segment_xs.append((min(x1_crop, x2_crop), max(x1_crop, x2_crop)))
+
+        if direction == Direction.LEFT:
+            x2 = x1
+            x1 -= step
+        else:
+            x1 = x2
+            x2 += step
+
+    if get_debug_mode():
+        cv2.rectangle(
+            img_copy,
+            (x1_crop, y1),
+            (x2_crop, y2),
+            (0, 255, 0),
+            2
+        )
+        display_img(img_copy)
+
+    return lines, segment_xs
+
+
+def traverse_v_shaped_line_pairs(
+    img: np.ndarray,
+    edges: np.ndarray,
+    intersection: Intersection,
+    step_ratio: float = 0.026,
+    h_delta_ratio: float = 0.05,
+    hough_thresh_ratio: float = 0.8,
+    min_line_len_ratio: float = 0.4,
+    max_line_gap_ratio: float = 0.1,
+    angle_tolerance_deg: float = 15
+) -> list[LineSegment]:
+
+    img = check_if_numpy_image(img)
+
+    point = intersection.point
+    line_1, line_2 = intersection.line1, intersection.line2
+
+    step = max(1, int(img.width * step_ratio))
+
+    x_test = point.x - step
+
+    y_1 = line_1.slope * x_test + line_1.intercept
+    y_2 = line_2.slope * x_test + line_2.intercept
+
+    if y_1 < y_2:
+        left_line = line_1
+        right_line = line_2
+    else:
+        left_line = line_2
+        right_line = line_1
+
+    left_lines, left_xs = traverse_along_line(
+        img=img,
+        edges=edges,
+        start_point=point,
+        guide_line=left_line,
+        direction=Direction.LEFT,
+        step_ratio=step_ratio,
+        h_delta_ratio=h_delta_ratio,
+        hough_thresh_ratio=hough_thresh_ratio,
+        min_line_len_ratio=min_line_len_ratio,
+        max_line_gap_ratio=max_line_gap_ratio,
+        angle_tolerance_deg=angle_tolerance_deg
+    )
+
+    right_lines, right_xs = traverse_along_line(
+        img=img,
+        edges=edges,
+        start_point=point,
+        guide_line=right_line,
+        direction=Direction.RIGHT,
+        step_ratio=step_ratio,
+        h_delta_ratio=h_delta_ratio,
+        hough_thresh_ratio=hough_thresh_ratio,
+        min_line_len_ratio=min_line_len_ratio,
+        max_line_gap_ratio=max_line_gap_ratio,
+        angle_tolerance_deg=angle_tolerance_deg
+    )
+
+    line_and_x_pairs = list(zip(
+        left_lines + right_lines,
+        left_xs + right_xs
+    ))
+
+    line_and_x_pairs.sort(
+        key=lambda pair: (pair[1][0] + pair[1][1]) / 2
+    )
+
+    line_segments = []
+    for line, (x_start, x_end) in line_and_x_pairs:
+
+        ls = LineSegment.from_tuples(
+            start=(
+                x_start,
+                int(line.slope * x_start + line.intercept)
+            ),
+            end=(
+                x_end,
+                int(line.slope * x_end + line.intercept)
+            )
+        )
+
+        line_segments.append(ls)
+
+    return line_segments

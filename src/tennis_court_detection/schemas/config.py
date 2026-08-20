@@ -24,6 +24,11 @@ class Direction(StrEnum):
     RIGHT = "right"
 
 
+class Axis(StrEnum):
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical" 
+
+
 class LinePosition(StrEnum):
     TOP = "top"
     BOTTOM = "bottom"

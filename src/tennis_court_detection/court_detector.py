@@ -12,6 +12,7 @@ from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from tennis_court_detection.schemas.config import LinePosition, ServiceSide, Surface, Direction
 from tennis_court_detection.utils.helpers import (
     crop_center_img,
+    get_intercept_from_neighbour,
     line_segments_intersections, 
     lines_from_gray_img,
     get_next_intersection_by_margin, 
@@ -26,15 +27,20 @@ from tennis_court_detection.utils.helpers import (
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
     pair_2_vertical_lines_by_distance,
     line_and_line_segments_intersections,
-    fill_missing_lines
+    check_if_all_segments_lines_none,
+    get_mirror_line,
+    mask_line_neighborhood_on_edges
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
     ensure_is_baseline,
     check_is_service_line,
     filter_horizontal_lines_by_white_pixels,
-    filter_horizontal_lines_by_white_pixels_segment_based
+    filter_horizontal_lines_by_white_pixels_segment_based,
+    filter_lines_by_mirror,
+    filter_line_segments_by_edges_mask
 )
+from tennis_court_detection.utils.metrics import calculate_white_columns_ratio
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
 from tennis_court_detection.utils.adjustments import (
     adjust_horizontal_line,
@@ -42,7 +48,9 @@ from tennis_court_detection.utils.adjustments import (
     traverse_sideline,
     scan_line_segments_for_horizontal_lines,
     traverse_horizontal_line,
-    build_segments
+    build_segments,
+    traverse_v_shaped_line_pairs,
+    traverse_v_shaped_line_pairs
 )
 from tennis_court_detection.config import get_debug_mode, set_debug_mode
 from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
@@ -550,8 +558,6 @@ class CourtDetector:
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
         roi_trim_ratio: float = 0.1,
-        line_intercept_std_ratio: float = 0.02,
-        white_column_ratio_thresh: float = 0.5
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -591,55 +597,6 @@ class CourtDetector:
         )
 
         initial_h_lines = filter_horizontal_lines(lines, slope_thresh=1)
-        line_segments_all = []
-        for line in initial_h_lines:
-
-            p1, p2 = line.limit_to_img(roi)
-            p_left, p_right = (p1, p2) if p1.x < p2.x else (p2, p1)
-
-            left_lines, left_segments_xs = traverse_horizontal_line(
-                    roi, 
-                    p_left, 
-                    p_right, 
-                    Direction.LEFT,
-                    h_delta_ratio=height_delta_ratio, 
-                    step_ratio=step_ratio, 
-                    line_position=LinePosition.TOP,
-                    horizontal_static=False,
-                    to_center=True
-                )
-            left_segments = sorted(zip(left_lines, left_segments_xs), key=lambda x: x[1][0])
-            left_segments_filled = fill_missing_lines(left_segments)
-
-            right_lines, right_segments_xs = traverse_horizontal_line(
-                    roi, 
-                    p_left, 
-                    p_right, 
-                    Direction.RIGHT,
-                    h_delta_ratio=height_delta_ratio, 
-                    step_ratio=step_ratio, 
-                    line_position=LinePosition.TOP,
-                    horizontal_static=False,
-                    to_center=True
-                )
-            right_segments = sorted(zip(right_lines, right_segments_xs), key=lambda x: x[1][0])
-            right_segments_filled = fill_missing_lines(right_segments)
-
-            segments_filled = left_segments_filled + right_segments_filled
-            segments_filled = fill_missing_lines(segments_filled)
-
-            if all(item[0] is None for item in segments_filled):
-                continue
-
-            points_to_ls = [
-                ((start_x, int(line.intercept)), (end_x, int(line.intercept))) 
-                for line, (start_x, end_x) in segments_filled
-            ]
-
-            line_segments = [LineSegment.from_tuples(start=pt[0], end=pt[1]) for pt in points_to_ls]
-
-            line_segments_all.append(line_segments)
-
 
         if get_debug_mode():
             roi_copy = roi.copy()
@@ -649,14 +606,7 @@ class CourtDetector:
 
             display_img(roi_copy)
 
-        h_lines = filter_horizontal_lines_by_white_pixels_segment_based(
-            roi,
-            edges,
-            initial_h_lines,
-            line_segments_all,
-            line_intercept_std_ratio = line_intercept_std_ratio,
-            white_column_ratio_thresh = white_column_ratio_thresh
-        )
+        h_lines = [line for line in initial_h_lines if line.slope !=0]
 
         if get_debug_mode():
             for line in h_lines:
@@ -665,51 +615,54 @@ class CourtDetector:
                 cv2.line(roi_copy, p1, p2, (0, 255, 0), 3)
                 display_img(roi_copy)
 
+        v_shaped_intersections = filter_lines_by_mirror(h_lines, roi)
 
-        centre_left_point_local = transform_point(centre_service_half_lines[0].point, roi_origin_x, roi_origin_y, to_global=False)
-        centre_right_point_local = transform_point(centre_service_half_lines[1].point, roi_origin_x, roi_origin_y, to_global=False)
+        if not v_shaped_intersections:
+            return
 
-        prj_x = int((centre_left_point_local.x + centre_right_point_local.x) / 2)
-        v_line = Line(xv=prj_x)
+        line_segments_all = []
+        for inter in v_shaped_intersections:
 
-        intersections = []
-        for line in h_lines:
-            intersec = v_line.intersection(line, roi)
-            if intersec is not None:
-                intersections.append(intersec)
+            line_segments = traverse_v_shaped_line_pairs(
+                roi, 
+                edges, 
+                inter
+            )
 
-        intersections = sorted(intersections, key=lambda inter: inter.point.y)[::-1]
+            line_segments_all.append(line_segments)
 
-        p_start_left = transform_point(netline_bottom_segments[0].start, roi_origin_x, roi_origin_y, to_global=False)
-        p_end_left = transform_point(netline_bottom_segments[0].end, roi_origin_x, roi_origin_y, to_global=False)
+            if get_debug_mode():
+                roi_copy = roi.copy()
+                h_delta_px = max(1, int(roi.height * height_delta_ratio))
 
-        p_start_right = transform_point(netline_bottom_segments[-1].start, roi_origin_x, roi_origin_y, to_global=False)
-        p_end_right = transform_point(netline_bottom_segments[-1].end, roi_origin_x, roi_origin_y, to_global=False)
+                for line_segment in line_segments:
+                    p1, p2 = line_segment.start, line_segment.end
+                    x1 = min(p1.x, p2.x)
+                    x2 = max(p1.x, p2.x)
+                    y_c = (p1.y + p2.y) // 2
 
-        left_x = min(p_start_left.x, p_end_left.x)
-        right_x = max(p_start_right.x, p_end_right.x)
+                    cv2.rectangle(
+                        roi_copy,
+                        (x1, y_c - h_delta_px),
+                        (x2, y_c + h_delta_px),
+                        (0, 255, 0),
+                        1
+                    )
+                display_img(roi_copy)
 
-        top_netline_segments = None
-        for inter in intersections:
-            point_c = inter.point
-            p_left = Point(left_x, point_c.y)
-            p_right = Point(right_x, point_c.y)
+        line_segments_candidates, white_pixels_ratios = filter_line_segments_by_edges_mask(
+            roi,
+            edges,
+            line_segments_all
+        )
 
-            try:
-                local_top_netline_segments = adjust_horizontal_line(
-                    roi, 
-                    p_left, 
-                    p_right, 
-                    height_delta_ratio=height_delta_ratio, 
-                    step_ratio=step_ratio, 
-                    line_position=LinePosition.TOP,
-                    horizontal_static=False
-                )
+        if not line_segments_candidates:
+            return
 
-                top_netline_segments = [transform_line_segment(ls, roi_origin_x, roi_origin_y) for ls in local_top_netline_segments]
+        ranked_top_netline_candidates = sorted(zip(line_segments_candidates, white_pixels_ratios), key=lambda x: x[1], reverse=True)
 
-            except NotEnoughLineSegmentsFound:
-                continue
-
-            if top_netline_segments:
-                return top_netline_segments
+        top_netline_segments = ranked_top_netline_candidates[0][0]
+        return [
+            transform_line_segment(segment, roi_origin_x, roi_origin_y, to_global=True)
+            for segment in top_netline_segments
+        ]

@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 from cvgeomkit.common import ArrayLike, Numeric, NumpyImage
 from cvgeomkit.geometry.points import Point
-from cvgeomkit.geometry.segments import LineSegment
+from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from cvgeomkit.geometry.intersections import Intersection, transform_intersection
-from tennis_court_detection.schemas.config import ServiceSide
+from tennis_court_detection.schemas.config import Axis, ServiceSide
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.utils.plotting import display_img
 
@@ -16,6 +16,7 @@ from tennis_court_detection.utils.metrics import (
 )
 
 from tennis_court_detection.utils.helpers import (
+    get_mirror_line,
     lines_from_gray_img, 
     angle_between_lines, 
     make_odd_kernel_size,
@@ -388,4 +389,140 @@ def filter_horizontal_lines_by_white_pixels_segment_based(
             h_lines.append(line)
 
     return h_lines
+
+
+def filter_lines_by_mirror(
+    lines: list[Line],
+    img: ArrayLike,
+    x_tol_ratio: float = 0.05,
+) -> list[Intersection] | list[None]:
+    img = check_if_numpy_image(img)
+    x_tol_px = img.width * x_tol_ratio
+
+    accepted_lines_intersections = []
+    for line in lines:
+        mirror_line = get_mirror_line(line, img)
+
+        p1, p2 = line.limit_to_img(img)
+        p1_m, p2_m = mirror_line.limit_to_img(img)
+
+        if get_debug_mode():
+            roi_copy = img.copy()
+            cv2.line(roi_copy, p1, p2, (0, 255, 0), 3)
+            cv2.line(roi_copy, p1_m, p2_m, (0, 0, 255), 3)
+            display_img(roi_copy)
+
+        p_left, p_right = sorted([p1, p2], key=lambda p: p.x)
+        p_m_left, p_m_right = sorted([p1_m, p2_m], key=lambda p: p.x)
+
+        if intersect := line.intersection(mirror_line, img):
+            mid_x = (p1.x + p2.x) / 2
+
+            p_ref = p_left if line.slope > 0 else p_right
+            p_m_ref = p_m_left if mirror_line.slope > 0 else p_m_right
+
+            is_below = intersect.point.y > p_ref.y and intersect.point.y > p_m_ref.y
+            is_centered = abs(intersect.point.x - mid_x) <= x_tol_px
+
+            if is_below and is_centered:
+                accepted_lines_intersections.append(intersect)
+
+    return accepted_lines_intersections
+
+
+def filter_line_segments_by_edges_mask(
+    roi: ArrayLike,
+    edges: ArrayLike,
+    line_segments_all: list[list[LineSegment]],
+    h_margin_img_ratio: float = 0.05,
+    w_margin_img_ratio: float = 0.1,
+    column_ratio_thresh: float = 0.9
+) -> tuple[list[list[LineSegment]], list[float]]:
+    roi = check_if_numpy_image(roi)
+    h_margin_px = int(h_margin_img_ratio * roi.height)
+    w_margin_px = int(w_margin_img_ratio * roi.width)
+
+    roi = NumpyImage(roi[:, w_margin_px:-w_margin_px])
+    edges = NumpyImage(edges[:, w_margin_px:-w_margin_px])
+
+    line_segments_all_local = [
+        [
+            transform_line_segment(segment, w_margin_px, 0, to_global=False)
+            for segment in line_segments
+        ] for line_segments in line_segments_all
+    ]
+
+    accepted_line_segments = []
+    white_pixels_ratios = []
+    for line_segments in line_segments_all_local:
+
+        mask = np.zeros(
+            (roi.height, roi.width),
+            dtype=np.uint8
+        )
+
+        if get_debug_mode():
+            roi_copy = roi.copy()
+
+        for segments in line_segments:
+
+            x_start, x_end = sorted(
+                (int(segments.start.x), int(segments.end.x))
+            )
+            y_start, y_end = sorted(
+                (int(segments.start.y), int(segments.end.y))
+            )
+
+            x_start = max(0, x_start)
+            x_end = min(roi.width - 1, x_end)
+
+            y_start = max(0, y_start - h_margin_px)
+            y_end = min(roi.height - 1, y_end + h_margin_px)
+
+            if x_start >= x_end or y_start >= y_end:
+                continue
+
+            cv2.rectangle(mask, (x_start, y_start), (x_end, y_end), 255, -1)
+
+            if get_debug_mode():
+                cv2.rectangle(
+                    roi_copy,
+                    (x_start, y_start),
+                    (x_end, y_end),
+                    (0, 255, 0),
+                    1
+                )
+
+        if get_debug_mode():
+            display_img(roi_copy)
+
+        edges_copy = edges.copy()
+        edges_copy[mask == 0] = 0
+
+        white_columns_ratio = calculate_white_columns_ratio(edges_copy, mask)
+        white_pixels_ratio = calculate_white_pixels_ratio(edges_copy, mask)
+
+        if get_debug_mode():
+            mask_img = mask_line_neighborhood_on_edges(
+                roi,
+                edges_copy,
+                mask.astype(bool)
+            )
+
+            display_img(mask_img)
+            print(f"white_columns_ratio: {white_columns_ratio}")
+            print(f"white_pixels_ratio: {white_pixels_ratio}")
+
+        if white_columns_ratio < column_ratio_thresh:
+            continue
+
+        white_pixels_ratios.append(white_pixels_ratio)
+        accepted_line_segments.append([
+            transform_line_segment(segment, w_margin_px, 0, to_global=True)
+            for segment in line_segments
+        ])
+
+    return accepted_line_segments, white_pixels_ratios
+
+            
 
