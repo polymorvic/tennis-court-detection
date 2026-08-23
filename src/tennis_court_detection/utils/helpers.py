@@ -571,6 +571,36 @@ def line_segments_intersections(
     return None
 
 
+def point_in_segment(point: Point | Intersection, segment: LineSegment) -> bool:
+    """
+    Check if a point is within the bounds of a line segment.
+    """
+    if isinstance(point, Intersection):
+        point = point.point
+        
+    return (min(segment.start.x, segment.end.x) <= point.x <= max(segment.start.x, segment.end.x) and
+            min(segment.start.y, segment.end.y) <= point.y <= max(segment.start.y, segment.end.y))
+
+
+def find_line_segments_intersection(
+    line_segments1: list[LineSegment], 
+    line_segments2: list[LineSegment], 
+    img: ArrayLike
+) -> tuple[Intersection, LineSegment, LineSegment] | None:
+    for ls1 in line_segments1:
+        for ls2 in line_segments2:
+            intersection = ls1.line.intersection(ls2.line, img)
+
+            if (
+                intersection is not None
+                and point_in_segment(intersection, ls1)
+                and point_in_segment(intersection, ls2)
+            ):
+                return intersection, ls1, ls2
+
+    return None
+
+
 def create_reference_court(
     ref_img_height: int = 25_000, 
     ref_img_width: int = 11_000, 
