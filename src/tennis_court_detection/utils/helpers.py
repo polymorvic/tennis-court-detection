@@ -10,7 +10,7 @@ from cvgeomkit.geometry.intersections import Intersection, compute_intersections
 from cvgeomkit.utils.plotting import display_img
 from cvgeomkit.utils.helpers import load_json, load_yaml
 from tennis_court_detection.schemas.config import Axis, Params, PicsBlacklist, Direction
-from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
+from tennis_court_detection.schemas.court import HalfLine, ReferenceCourtTennisCourtKeyPoints
 from tennis_court_detection.utils.constants import COURT_DIMENSIONS
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
 from tennis_court_detection.config import get_debug_mode
@@ -571,25 +571,38 @@ def line_segments_intersections(
     return None
 
 
-def point_in_segment(point: Point | Intersection, segment: LineSegment) -> bool:
+def point_in_segment(
+    point: Point | Intersection, 
+    segment: LineSegment,
+    tol_px: int = 2
+) -> bool:
     """
     Check if a point is within the bounds of a line segment.
+    tol_px jako zabezpieczenie jakby się nie przecinały tylko jeden segment zaczynałby się dokładnie w drugim
     """
     if isinstance(point, Intersection):
         point = point.point
         
-    return (min(segment.start.x, segment.end.x) <= point.x <= max(segment.start.x, segment.end.x) and
-            min(segment.start.y, segment.end.y) <= point.y <= max(segment.start.y, segment.end.y))
+    return (min(segment.start.x, segment.end.x) - tol_px <= point.x <= max(segment.start.x, segment.end.x) + tol_px and
+            min(segment.start.y, segment.end.y) - tol_px <= point.y <= max(segment.start.y, segment.end.y) + tol_px)
 
 
 def find_line_segments_intersection(
     line_segments1: list[LineSegment], 
     line_segments2: list[LineSegment], 
     img: ArrayLike
-) -> tuple[Intersection, LineSegment, LineSegment] | None:
+ ) -> tuple[Intersection, LineSegment, LineSegment] | tuple[None, None, None]:
     for ls1 in line_segments1:
         for ls2 in line_segments2:
             intersection = ls1.line.intersection(ls2.line, img)
+
+            if get_debug_mode():
+                img_copy = img.copy()
+                cv2.circle(img_copy, intersection.point, 2, (255, 0, 0), -1)
+                p1_a, p2_a = ls1.line.limit_to_img(img)
+                p1_b, p2_b = ls2.line.limit_to_img(img)
+                cv2.line(img_copy, p1_a, p2_a, (0, 255, 0), 1)
+                cv2.line(img_copy, p1_b, p2_b, (0, 0, 255), 1)
 
             if (
                 intersection is not None
@@ -598,14 +611,17 @@ def find_line_segments_intersection(
             ):
                 return intersection, ls1, ls2
 
-    return None
+    if get_debug_mode():
+        display_img(img_copy)
+
+    return None, None, None
 
 
 def create_reference_court(
     ref_img_height: int = 25_000, 
     ref_img_width: int = 11_000, 
     line_thickness: int = 50
-) -> tuple[TennisCourtKeyPoints, np.ndarray]:
+) -> tuple[ReferenceCourtTennisCourtKeyPoints, np.ndarray]:
     dimensions = COURT_DIMENSIONS
     green = (0, 255, 0)
     red = (255, 0, 0)
@@ -622,7 +638,7 @@ def create_reference_court(
     service_y = dimensions.dist_from_baseline
     opposite_service_y = dimensions.length - dimensions.dist_from_baseline
 
-    ref_key_points = TennisCourtKeyPoints(
+    ref_key_points = ReferenceCourtTennisCourtKeyPoints(
         left_outer_baseline_point=Point.from_iterable((left_x, top_y)),
         left_inner_baseline_point=Point.from_iterable((inner_left_x, top_y)),
         left_outer_netline_point=Point.from_iterable((left_x, mid_y)),
@@ -633,10 +649,17 @@ def create_reference_court(
         right_inner_netline_point=Point.from_iterable((inner_right_x, mid_y)),
         left_service_point=Point.from_iterable((inner_left_x, service_y)),
         right_service_point=Point.from_iterable((inner_right_x, service_y)),
-        left_service_netline_point=Point.from_iterable((inner_left_x, opposite_service_y)),
-        right_service_netline_point=Point.from_iterable((inner_right_x, opposite_service_y)),
+        avg_service_netline_point=Point.from_iterable((half_x, mid_y)),
+        avg_centre_service_point = Point.from_iterable((half_x, service_y)),
         left_centre_service_point=Point.from_iterable((half_x, opposite_service_y)),
         right_centre_service_point=Point.from_iterable((half_x, service_y)),
+        left_outer_baseline_point_opposite = Point.from_iterable((left_x, bottom_y)),
+        left_inner_baseline_point_opposite =Point.from_iterable((inner_left_x, bottom_y)),
+        right_outer_baseline_point_opposite = Point.from_iterable((right_x, bottom_y)),
+        right_inner_baseline_point_opposite = Point.from_iterable((inner_right_x, bottom_y)),
+        left_service_point_opposite = Point.from_iterable((inner_left_x, opposite_service_y)),
+        right_service_point_opposite = Point.from_iterable((inner_right_x, opposite_service_y)),
+        avg_centre_service_point_opposite = Point.from_iterable((half_x, opposite_service_y))
     )
 
     ref_img = np.zeros((ref_img_height, ref_img_width, 3), np.uint8)
@@ -668,8 +691,8 @@ def create_reference_court(
 
 
 def build_input_for_homography_matrix_from_tennis_court_key_points_models(
-    ref_points_model: TennisCourtKeyPoints,
-    dst_points_model: TennisCourtKeyPoints,
+    ref_points_model: ReferenceCourtTennisCourtKeyPoints,
+    dst_points_model: ReferenceCourtTennisCourtKeyPoints,
 ) -> tuple[np.ndarray, np.ndarray, tuple[str, ...]]:
     ref_points_dump = ref_points_model.model_dump()
     dst_points_dump = dst_points_model.model_dump()
@@ -757,3 +780,30 @@ def get_mirror_line(
         return Line(-m, b + m * (img.width - 1))
     elif axis == Axis.HORIZONTAL:
         return Line(-m, (img.height - 1) - b)
+
+
+def transform_points(
+    ref_key_points: ReferenceCourtTennisCourtKeyPoints,
+    dst_key_points: ReferenceCourtTennisCourtKeyPoints,
+    img: ArrayLike | None = None
+) -> np.ndarray[int, int] | None:
+    ref_pts, dst_pts, _ = build_input_for_homography_matrix_from_tennis_court_key_points_models(
+        ref_key_points, dst_key_points
+    )
+
+    H, _ = cv2.findHomography(ref_pts, dst_pts)
+    if H is None:
+        raise ValueError("Homography matrix could not be computed. Check the input points.")
+
+    all_ref_points_arr = np.array([point for point in ref_key_points.model_dump().values()], dtype=np.float32)
+    transformed_points = cv2.perspectiveTransform(all_ref_points_arr.reshape(-1, 1, 2), H)
+    transformed_points = transformed_points.squeeze().astype(int)
+
+    if get_debug_mode():
+        if img is None:
+            raise ValueError("Image must be provided for debugging.")
+
+        court = ReferenceCourtTennisCourtKeyPoints.from_matrix(transformed_points)
+        court.draw_on_image(img, with_lines=True, dst_points=list(dst_key_points.model_dump(exclude_none=True).keys()))
+        
+    return transformed_points
