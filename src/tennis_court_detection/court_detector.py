@@ -53,7 +53,7 @@ from tennis_court_detection.utils.adjustments import (
     traverse_v_shaped_line_pairs
 )
 from tennis_court_detection.config import get_debug_mode, set_debug_mode
-from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
+from tennis_court_detection.schemas.court import HalfLine, ReferenceCourtTennisCourtKeyPoints
 
 
 class CourtDetector:
@@ -470,7 +470,7 @@ class CourtDetector:
         right_inner_segments: list[LineSegment],
         right_outer_segments: list[LineSegment],
         service_line_segments: list[LineSegment]
-    ) -> TennisCourtKeyPoints | None:
+    ) -> list[LineSegment] | None:
         intersections = {
             "left_outer_baseline_point": line_segments_intersections(baseline_segments, left_outer_segments, self.img),
             "left_inner_baseline_point": line_segments_intersections(baseline_segments, left_inner_segments, self.img),
@@ -483,7 +483,7 @@ class CourtDetector:
         if any(intersection is None for intersection in intersections.values()):
             return None
 
-        court = TennisCourtKeyPoints(**{name: intersection.point for name, intersection in intersections.items()})
+        court = ReferenceCourtTennisCourtKeyPoints(**{name: intersection.point for name, intersection in intersections.items()})
         ref_court, _ = create_reference_court()
 
 
@@ -498,7 +498,7 @@ class CourtDetector:
 
         transformed_points = transformed_points.squeeze().astype(int)
 
-        transformed_court = TennisCourtKeyPoints.from_matrix(transformed_points)
+        transformed_court = ReferenceCourtTennisCourtKeyPoints.from_matrix(transformed_points)
 
         raw_netline_points = [transformed_court.left_outer_netline_point, 
                               transformed_court.left_inner_netline_point, 
@@ -666,3 +666,9 @@ class CourtDetector:
             transform_line_segment(segment, roi_origin_x, roi_origin_y, to_global=True)
             for segment in top_netline_segments
         ]
+
+
+    def find_opposite_court(
+        self
+    ):
+        pass
