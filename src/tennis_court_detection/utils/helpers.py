@@ -574,7 +574,6 @@ def line_segments_intersections(
 def point_in_segment(
     point: Point | Intersection, 
     segment: LineSegment,
-    tol_px: int = 2
 ) -> bool:
     """
     Check if a point is within the bounds of a line segment.
@@ -583,8 +582,8 @@ def point_in_segment(
     if isinstance(point, Intersection):
         point = point.point
         
-    return (min(segment.start.x, segment.end.x) - tol_px <= point.x <= max(segment.start.x, segment.end.x) + tol_px and
-            min(segment.start.y, segment.end.y) - tol_px <= point.y <= max(segment.start.y, segment.end.y) + tol_px)
+    return (min(segment.start.x, segment.end.x) <= point.x <= max(segment.start.x, segment.end.x) and
+            min(segment.start.y, segment.end.y) <= point.y <= max(segment.start.y, segment.end.y))
 
 
 def find_line_segments_intersection(
@@ -592,9 +591,24 @@ def find_line_segments_intersection(
     line_segments2: list[LineSegment], 
     img: ArrayLike
  ) -> tuple[Intersection, LineSegment, LineSegment] | tuple[None, None, None]:
+    distances = []
     for ls1 in line_segments1:
         for ls2 in line_segments2:
             intersection = ls1.line.intersection(ls2.line, img)
+
+            ls1_center = Point(
+                (ls1.start.x + ls1.end.x) // 2,
+                (ls1.start.y + ls1.end.y) // 2
+            )
+            ls2_center = Point(
+                (ls2.start.x + ls2.end.x) // 2,
+                (ls2.start.y + ls2.end.y) // 2
+            )
+
+            if intersection is None:
+                continue
+
+            distances.append((intersection, ls1, ls2, ls1_center.distance(ls2_center)))
 
             if get_debug_mode():
                 img_copy = img.copy()
@@ -604,16 +618,16 @@ def find_line_segments_intersection(
                 cv2.line(img_copy, p1_a, p2_a, (0, 255, 0), 1)
                 cv2.line(img_copy, p1_b, p2_b, (0, 0, 255), 1)
 
-            if (
-                intersection is not None
-                and point_in_segment(intersection, ls1)
-                and point_in_segment(intersection, ls2)
-            ):
+            if point_in_segment(intersection, ls1) and point_in_segment(intersection, ls2):
                 return intersection, ls1, ls2
 
     if get_debug_mode():
         display_img(img_copy)
 
+    if distances:
+        distances = sorted(distances, key=lambda x: x[3])
+        return distances[0][0], distances[0][1], distances[0][2]
+    
     return None, None, None
 
 
@@ -786,7 +800,7 @@ def transform_points(
     ref_key_points: ReferenceCourtTennisCourtKeyPoints,
     dst_key_points: ReferenceCourtTennisCourtKeyPoints,
     img: ArrayLike | None = None
-) -> np.ndarray[int, int] | None:
+) -> np.ndarray[int, int]:
     ref_pts, dst_pts, _ = build_input_for_homography_matrix_from_tennis_court_key_points_models(
         ref_key_points, dst_key_points
     )
