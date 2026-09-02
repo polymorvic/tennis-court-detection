@@ -14,15 +14,16 @@ class TennisModel(BaseModel, arbitrary_types_allowed=True):
     pass
 
 
-class TennisCourtLineSegments(TennisModel):
-    baseline_segments: list[LineSegment]
-    left_outer_segments: list[LineSegment]
-    left_inner_segments: list[LineSegment]
-    right_outer_segments: list[LineSegment]
-    right_inner_segments: list[LineSegment]
-    service_line_segments: list[LineSegment]
-    centre_service_line_segments: list[LineSegment]
-    netline_segments: list[LineSegment]
+class CourtSegmentsCollection(TennisModel):
+    baseline: list[LineSegment]
+    left_outer: list[LineSegment]
+    left_inner: list[LineSegment]
+    right_outer: list[LineSegment]
+    right_inner: list[LineSegment]
+    service_line: list[LineSegment]
+    netline_bottom: list[LineSegment]
+    left_centre_service_line: list[LineSegment]
+    right_centre_service_line: list[LineSegment]
 
 
 class ReferenceCourtTennisCourtKeyPoints(TennisModel):
@@ -69,6 +70,18 @@ class ReferenceCourtTennisCourtKeyPoints(TennisModel):
             right_service_point_opposite = Point.from_iterable(matrix[17]),
             avg_centre_service_point_opposite = Point.from_iterable(matrix[18]),
         )
+
+    @property
+    def get_opposite_side_points(self) -> dict[str, Point | None]:
+        return {
+            "left_outer_baseline_point_opposite": self.left_outer_baseline_point_opposite,
+            "left_inner_baseline_point_opposite": self.left_inner_baseline_point_opposite,
+            "right_outer_baseline_point_opposite": self.right_outer_baseline_point_opposite,
+            "right_inner_baseline_point_opposite": self.right_inner_baseline_point_opposite,
+            "left_service_point_opposite": self.left_service_point_opposite,
+            "right_service_point_opposite": self.right_service_point_opposite,
+            "avg_centre_service_point_opposite": self.avg_centre_service_point_opposite,
+        }
 
 
     def draw_on_image(
@@ -137,7 +150,7 @@ class ReferenceCourtTennisCourtKeyPoints(TennisModel):
 
 
 class TennisCourt(TennisModel):
-    segments: TennisCourtLineSegments
+    segments: CourtSegmentsCollection
     key_points: ReferenceCourtTennisCourtKeyPoints
 
 
