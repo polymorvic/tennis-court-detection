@@ -4,6 +4,7 @@ from tqdm import tqdm
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+from tennis_court_detection.schemas.court import CourtSegmentsCollection
 from tennis_court_detection.utils.annotations import TennisCourtAnnotationCollection
 from tennis_court_detection.utils.testing import (build_output_dir,)
 from tennis_court_detection.utils.helpers import (
@@ -154,11 +155,30 @@ def run(
         if not netline_top_segments:
             continue
 
+        court_segments = CourtSegmentsCollection(
+            baseline=baseline_segments,
+            left_outer=left_outer_segments,
+            left_inner=left_inner_segments,
+            right_inner=right_inner_segments,
+            right_outer=right_outer_segments,
+            service_line=service_line_segments,
+            left_centre_service_line=left_centre_service_line_segments,
+            right_centre_service_line=right_centre_service_line_segments,
+            netline_bottom=netline_bottom_segments
+        )
+
+        projected_points = detector.find_opposite_side_points(court_segments)
+
+        baseline_opposite_segments = detector.find_opposite_baseline(
+            **projected_points
+        )
+
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 
                         left_inner_segments, right_inner_segments, right_outer_segments,
                         service_line_segments, left_centre_service_line_segments, 
-                        right_centre_service_line_segments, netline_bottom_segments, netline_top_segments]:
+                        right_centre_service_line_segments, netline_bottom_segments, netline_top_segments, 
+                        baseline_opposite_segments]:
             for segment in segments:
                 cv2.line(img_copy, segment.start, segment.end, (255, 0, 0), 1)
 

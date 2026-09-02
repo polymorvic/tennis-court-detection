@@ -22,6 +22,7 @@ from tennis_court_detection.utils.helpers import (
     get_point_from_segments_by_point_y,
     pair_horizontal_lines,
     get_center_point_from_2_half_lines,
+    transform_points,
     traverse_vertical_line,
     create_reference_court,
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
@@ -29,7 +30,8 @@ from tennis_court_detection.utils.helpers import (
     line_and_line_segments_intersections,
     check_if_all_segments_lines_none,
     get_mirror_line,
-    mask_line_neighborhood_on_edges
+    mask_line_neighborhood_on_edges,
+    find_line_segments_intersection
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -53,7 +55,7 @@ from tennis_court_detection.utils.adjustments import (
     traverse_v_shaped_line_pairs
 )
 from tennis_court_detection.config import get_debug_mode, set_debug_mode
-from tennis_court_detection.schemas.court import HalfLine, TennisCourtKeyPoints
+from tennis_court_detection.schemas.court import CourtSegmentsCollection, HalfLine, ReferenceCourtTennisCourtKeyPoints
 
 
 class CourtDetector:
@@ -470,7 +472,7 @@ class CourtDetector:
         right_inner_segments: list[LineSegment],
         right_outer_segments: list[LineSegment],
         service_line_segments: list[LineSegment]
-    ) -> TennisCourtKeyPoints | None:
+    ) -> list[LineSegment] | None:
         intersections = {
             "left_outer_baseline_point": line_segments_intersections(baseline_segments, left_outer_segments, self.img),
             "left_inner_baseline_point": line_segments_intersections(baseline_segments, left_inner_segments, self.img),
@@ -483,7 +485,7 @@ class CourtDetector:
         if any(intersection is None for intersection in intersections.values()):
             return None
 
-        court = TennisCourtKeyPoints(**{name: intersection.point for name, intersection in intersections.items()})
+        court = ReferenceCourtTennisCourtKeyPoints(**{name: intersection.point for name, intersection in intersections.items()})
         ref_court, _ = create_reference_court()
 
 
@@ -498,7 +500,7 @@ class CourtDetector:
 
         transformed_points = transformed_points.squeeze().astype(int)
 
-        transformed_court = TennisCourtKeyPoints.from_matrix(transformed_points)
+        transformed_court = ReferenceCourtTennisCourtKeyPoints.from_matrix(transformed_points)
 
         raw_netline_points = [transformed_court.left_outer_netline_point, 
                               transformed_court.left_inner_netline_point, 
@@ -666,3 +668,111 @@ class CourtDetector:
             transform_line_segment(segment, roi_origin_x, roi_origin_y, to_global=True)
             for segment in top_netline_segments
         ]
+
+
+    def find_opposite_side_points(
+        self,
+        court_line_segments: CourtSegmentsCollection
+    ):
+        left_inner_netline_point = find_line_segments_intersection(court_line_segments.left_inner, court_line_segments.netline_bottom, self.img)[0]
+        left_outer_netline_point = find_line_segments_intersection(court_line_segments.left_outer, court_line_segments.netline_bottom, self.img)[0]
+        left_outer_baseline_point = find_line_segments_intersection(court_line_segments.left_outer, court_line_segments.baseline, self.img)[0]
+        left_inner_baseline_point = find_line_segments_intersection(court_line_segments.left_inner, court_line_segments.baseline, self.img)[0]
+        right_inner_baseline_point = find_line_segments_intersection(court_line_segments.right_inner, court_line_segments.baseline, self.img)[0]
+        right_outer_baseline_point = find_line_segments_intersection(court_line_segments.right_outer, court_line_segments.baseline, self.img)[0]
+        right_outer_netline_point = find_line_segments_intersection(court_line_segments.right_outer, court_line_segments.netline_bottom, self.img)[0]
+        right_inner_netline_point = find_line_segments_intersection(court_line_segments.right_inner, court_line_segments.netline_bottom, self.img)[0]
+        left_service_netline_point = find_line_segments_intersection(court_line_segments.left_centre_service_line, court_line_segments.netline_bottom, self.img)[0]
+        right_service_netline_point = find_line_segments_intersection(court_line_segments.right_centre_service_line, court_line_segments.netline_bottom, self.img)[0]
+
+        left_service_point = find_line_segments_intersection(court_line_segments.left_inner, court_line_segments.service_line, self.img)[0]
+        right_service_point = find_line_segments_intersection(court_line_segments.right_inner, court_line_segments.service_line, self.img)[0]
+
+        left_centre_service_point = find_line_segments_intersection(court_line_segments.left_centre_service_line, court_line_segments.service_line, self.img)[0]
+        right_centre_service_point = find_line_segments_intersection(court_line_segments.right_centre_service_line, court_line_segments.service_line, self.img)[0]
+
+
+        # print(f'{left_inner_netline_point=}')
+        # print(f'{left_outer_netline_point=}')
+        # print(f'{left_outer_baseline_point=}')
+        # print(f'{left_inner_baseline_point=}')
+        # print(f'{right_inner_baseline_point=}')
+        # print(f'{right_outer_baseline_point=}')
+        # print(f'{right_outer_netline_point=}')
+        # print(f'{right_inner_netline_point=}')
+        # print(f'{left_service_netline_point=}')
+        # print(f'{right_service_netline_point=}')
+        # print(f'{left_service_point=}')
+        # print(f'{right_service_point=}')
+        # print(f'{left_centre_service_point=}')
+        # print(f'{right_centre_service_point=}')
+
+
+        avg_centre_service_point = Point(
+            (left_centre_service_point.point.x + right_centre_service_point.point.x) // 2,
+            (left_centre_service_point.point.y + right_centre_service_point.point.y) // 2
+        )
+
+        avg_service_netline_point = Point(
+            (left_service_netline_point.point.x + right_service_netline_point.point.x) // 2,
+            (left_service_netline_point.point.y + right_service_netline_point.point.y) // 2
+        )
+
+        ref_court, _ = create_reference_court()
+
+        dst_court = ReferenceCourtTennisCourtKeyPoints(
+            left_inner_netline_point = left_inner_netline_point.point,
+            left_outer_netline_point = left_outer_netline_point.point,
+            left_outer_baseline_point = left_outer_baseline_point.point,
+            left_inner_baseline_point = left_inner_baseline_point.point,
+            right_inner_baseline_point = right_inner_baseline_point.point,
+            right_outer_baseline_point = right_outer_baseline_point.point,
+            right_outer_netline_point = right_outer_netline_point.point,
+            right_inner_netline_point = right_inner_netline_point.point,
+            left_service_netline_point = left_service_netline_point.point,
+            right_service_netline_point = right_service_netline_point.point,
+            left_service_point = left_service_point.point,
+            right_service_point = right_service_point.point,
+            left_centre_service_point = left_centre_service_point.point,
+            right_centre_service_point = right_centre_service_point.point,
+            avg_centre_service_point = avg_centre_service_point,
+            avg_service_netline_point = avg_service_netline_point
+        )
+
+        transformed_points_arr = transform_points(
+            ref_key_points=ref_court,
+            dst_key_points=dst_court,
+            img=self.img
+        )
+
+        return (
+            ReferenceCourtTennisCourtKeyPoints
+            .from_matrix(transformed_points_arr)
+            .get_opposite_side_points
+        )
+
+
+    def find_opposite_baseline(
+        self,
+        left_outer_baseline_point_opposite: Point,
+        right_outer_baseline_point_opposite: Point,
+        left_inner_baseline_point_opposite: Point,
+        right_inner_baseline_point_opposite: Point,
+        **kwargs
+    ):
+        try:
+            ls = adjust_horizontal_line(
+                self.img,
+                left_outer_baseline_point_opposite,
+                right_outer_baseline_point_opposite,
+                line_position=LinePosition.TOP
+            )
+        except Exception:
+            ls = [LineSegment.from_points(left_outer_baseline_point_opposite, left_inner_baseline_point_opposite),
+                  LineSegment.from_points(left_inner_baseline_point_opposite, right_inner_baseline_point_opposite),
+                  LineSegment.from_points(right_inner_baseline_point_opposite, right_outer_baseline_point_opposite)]
+
+
+        return ls
+
+  
