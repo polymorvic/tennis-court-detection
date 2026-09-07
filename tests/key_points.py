@@ -173,12 +173,16 @@ def run(
             **projected_points
         )
 
+        service_line_opposite_segments = detector.find_opposite_service_line(
+            **projected_points
+        )
+
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 
                         left_inner_segments, right_inner_segments, right_outer_segments,
                         service_line_segments, left_centre_service_line_segments, 
                         right_centre_service_line_segments, netline_bottom_segments, netline_top_segments, 
-                        baseline_opposite_segments]:
+                        baseline_opposite_segments, service_line_opposite_segments]:
             for segment in segments:
                 cv2.line(img_copy, segment.start, segment.end, (255, 0, 0), 1)
 
