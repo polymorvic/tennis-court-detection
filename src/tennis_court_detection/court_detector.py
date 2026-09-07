@@ -692,22 +692,6 @@ class CourtDetector:
         right_centre_service_point = find_line_segments_intersection(court_line_segments.right_centre_service_line, court_line_segments.service_line, self.img)[0]
 
 
-        # print(f'{left_inner_netline_point=}')
-        # print(f'{left_outer_netline_point=}')
-        # print(f'{left_outer_baseline_point=}')
-        # print(f'{left_inner_baseline_point=}')
-        # print(f'{right_inner_baseline_point=}')
-        # print(f'{right_outer_baseline_point=}')
-        # print(f'{right_outer_netline_point=}')
-        # print(f'{right_inner_netline_point=}')
-        # print(f'{left_service_netline_point=}')
-        # print(f'{right_service_netline_point=}')
-        # print(f'{left_service_point=}')
-        # print(f'{right_service_point=}')
-        # print(f'{left_centre_service_point=}')
-        # print(f'{right_centre_service_point=}')
-
-
         avg_centre_service_point = Point(
             (left_centre_service_point.point.x + right_centre_service_point.point.x) // 2,
             (left_centre_service_point.point.y + right_centre_service_point.point.y) // 2
@@ -759,7 +743,7 @@ class CourtDetector:
         left_inner_baseline_point_opposite: Point,
         right_inner_baseline_point_opposite: Point,
         **kwargs
-    ):
+    ) -> list[LineSegment]:
         try:
             ls = adjust_horizontal_line(
                 self.img,
@@ -774,5 +758,29 @@ class CourtDetector:
 
 
         return ls
+
+    def find_opposite_service_line(
+        self,
+        left_service_point_opposite: Point,
+        right_service_point_opposite: Point,
+        avg_centre_service_point_opposite: Point,
+        **kwargs
+    ) -> list[LineSegment]:
+        try:
+            ls = adjust_horizontal_line(
+                self.img,
+                left_service_point_opposite,
+                right_service_point_opposite,
+                line_position=LinePosition.TOP
+            )
+        except Exception:
+            ls = [LineSegment.from_points(left_service_point_opposite, avg_centre_service_point_opposite),
+                  LineSegment.from_points(avg_centre_service_point_opposite, right_service_point_opposite)
+            ]
+
+        return ls
+        
+
+        
 
   
