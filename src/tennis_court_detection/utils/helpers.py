@@ -64,7 +64,7 @@ def lines_from_gray_img(
         if segments is not None:
             for segment in segments:
                 x1, y1, x2, y2 = segment[0]
-                cv2.line(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.line(img_copy, (x1, y1), (x2, y2), (0, 255, 0), 1)
         display_img(img_copy)
 
     if segments is None:
@@ -366,7 +366,7 @@ def pair_2_vertical_lines_by_distance(
     for l1, l2 in combinations(v_lines, 2):
 
         p1_top, p1_bottom = sorted(l1.limit_to_img(img), key=lambda point: point.y)
-        p2_top, p2_bottom = sorted(l2.limit_to_img(img), key=lambda point: point.y,)
+        p2_top, p2_bottom = sorted(l2.limit_to_img(img), key=lambda point: point.y)
 
         diff_start = abs(p1_top.x - p2_top.x)
         diff_end = abs(p1_bottom.x - p2_bottom.x)
@@ -622,6 +622,7 @@ def find_line_segments_intersection(
                 return intersection, ls1, ls2
 
     if get_debug_mode():
+        img_copy = img.copy()
         display_img(img_copy)
 
     if distances:
@@ -821,3 +822,17 @@ def transform_points(
         court.draw_on_image(img, with_lines=True, dst_points=list(dst_key_points.model_dump(exclude_none=True).keys()))
         
     return transformed_points
+
+
+def pair_centre_service_lines_opposite(
+    points_candidates: list[Point],
+    ref_centre_service_points: tuple[Point, Point],
+) -> list[Point, Point]:
+    ref_distance_x = abs(ref_centre_service_points[0].x - ref_centre_service_points[1].x)
+    best_pair = min(
+        combinations(points_candidates, 2),
+        key=lambda pair: abs(
+            abs(pair[0].x - pair[1].x) - ref_distance_x
+        )
+    )
+    return sorted(best_pair, key=lambda point: point.x)
