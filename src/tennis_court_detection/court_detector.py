@@ -31,7 +31,8 @@ from tennis_court_detection.utils.helpers import (
     check_if_all_segments_lines_none,
     get_mirror_line,
     mask_line_neighborhood_on_edges,
-    find_line_segments_intersection
+    find_line_segments_intersection,
+    pair_centre_service_lines_opposite
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -759,6 +760,7 @@ class CourtDetector:
 
         return ls
 
+
     def find_opposite_service_line(
         self,
         left_service_point_opposite: Point,
@@ -779,8 +781,127 @@ class CourtDetector:
             ]
 
         return ls
-        
 
-        
 
-  
+    def find_centre_service_lines_opposite(
+        self,
+        left_centre_service_line_segments: list[LineSegment], 
+        right_centre_service_line_segments: list[LineSegment],
+        service_line_opposite_segments: list[LineSegment]
+    ) -> tuple[list[LineSegment], list[LineSegment]] | None:
+        
+        left_service_point_opposite = line_segments_intersections(left_centre_service_line_segments, service_line_opposite_segments, self.img)
+        right_service_point_opposite = line_segments_intersections(right_centre_service_line_segments, service_line_opposite_segments, self.img)
+
+        if left_service_point_opposite is None or right_service_point_opposite is None:
+            return None
+
+        left_service_netline_point = sorted([left_centre_service_line_segments[0].start, left_centre_service_line_segments[0].end], key= lambda point: point.y)[0]
+        right_service_netline_point = sorted([right_centre_service_line_segments[0].start, right_centre_service_line_segments[0].end], key= lambda point: point.y)[0]
+
+        return (
+            [LineSegment.from_points(left_service_netline_point, left_service_point_opposite.point)], 
+            [LineSegment.from_points(right_service_netline_point, right_service_point_opposite.point)]
+        )
+
+    
+    def find_centre_service_lines_opposite(
+        self,
+        netline_bottom_segments: list[LineSegment],
+        left_centre_service_line_segments: list[LineSegment], 
+        right_centre_service_line_segments: list[LineSegment],
+        service_line_opposite_segments: list[LineSegment],
+        left_inner_segments: list[LineSegment],
+        right_inner_segments: list[LineSegment],
+        centre_service_halflines: tuple[HalfLine, HalfLine],
+        margin_ratio: float = 0.02,
+        canny_lower_thresh: int = 20,
+        canny_upper_thresh: int = 100,
+        hough_thresh: int = 5,
+        min_line_len_ratio: float = 0.2,
+        max_line_gap_ratio: float = 0.1,
+    ) -> tuple[list[LineSegment], list[LineSegment]] | None:
+        left_service_netline_point = find_line_segments_intersection(netline_bottom_segments, left_centre_service_line_segments, self.img)[0].point
+        right_service_netline_point = find_line_segments_intersection(netline_bottom_segments, right_centre_service_line_segments, self.img)[0].point
+
+        left_service_point_opposite = find_line_segments_intersection(service_line_opposite_segments, left_inner_segments, self.img)[0].point
+        right_service_point_opposite = find_line_segments_intersection(service_line_opposite_segments, right_inner_segments, self.img)[0].point
+
+        x_bound = (left_service_netline_point.x + right_service_netline_point.x) // 2
+        y_bound = (left_service_point_opposite.y + right_service_point_opposite.y) // 2
+
+        margin_width_px = int(self.img.width * margin_ratio)
+        margin_height_px = int(self.img.height * margin_ratio)
+
+        x_start = max(0, x_bound - 20)
+        x_end = min(self.img.width, x_bound + margin_width_px)
+
+        y_start = max(0, y_bound - 5)
+        y_end = min(self.img.height, y_bound + margin_height_px)
+
+        roi_gray = self.img_gray[y_start:y_end, x_start:x_end]
+        roi_blur = cv2.bilateralFilter(roi_gray, d=9, sigmaColor=30, sigmaSpace=30)
+
+        min_line_len_px = max(1, int(roi_gray.height * min_line_len_ratio))
+        max_line_gap_px = max(0, int(roi_gray.height * max_line_gap_ratio))
+
+        lines = lines_from_gray_img(
+            roi_blur,
+            canny_lower_thresh,
+            canny_upper_thresh,
+            hough_thresh,
+            min_line_len_px,
+            max_line_gap_px
+        )
+
+        v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
+        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= 3]
+
+        if get_debug_mode():
+            display_img(roi_gray)
+            display_img(roi_blur)
+
+            roi = self.img[y_start:y_end, x_start:x_end]
+
+            roi_copy = roi.copy()
+            for line in v_lines:
+                p1, p2 = line.limit_to_img(roi)
+                cv2.line(roi_copy, p1, p2, (0, 255, 0), 1)
+            display_img(roi_copy)
+
+        if not v_lines or len(v_lines) < 2:
+            return
+
+        v_segments_local = [LineSegment.from_line_and_image(line, roi_gray) for line in v_lines]
+        v_segments_global = [transform_line_segment(ls, x_start, y_start) for ls in v_segments_local]
+
+        points_candidates = []
+        for ls in v_segments_global:
+            intersection = find_line_segments_intersection([ls], service_line_opposite_segments, self.img)[0]
+            if intersection is not None:
+                points_candidates.append(intersection.point)
+
+        if not points_candidates or len(points_candidates) < 2:
+            return
+
+        ref_points = [centre_service_halflines[0].point, centre_service_halflines[1].point]
+
+        ref_x_avg = (ref_points[0].x + ref_points[1].x) // 2
+        x_tol = roi_gray.width * 0.1
+
+        points_candidates = [
+            point
+            for point in points_candidates
+            if abs(point.x - ref_x_avg) <= x_tol
+        ]
+
+        if not points_candidates or len(points_candidates) < 2:
+            return
+
+        left_centre_service_point_opposite, right_centre_service_point_opposite = pair_centre_service_lines_opposite(points_candidates, ref_points)
+
+        return (
+            [LineSegment.from_points(left_service_netline_point, left_centre_service_point_opposite)], 
+            [LineSegment.from_points(right_service_netline_point, right_centre_service_point_opposite)]
+        )
+    
