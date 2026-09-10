@@ -808,7 +808,7 @@ class CourtDetector:
     def find_centre_service_lines_opposite(
         self,
         netline_bottom_segments: list[LineSegment],
-        left_centre_service_line_segments: list[LineSegment], 
+        left_centre_service_line_segments: list[LineSegment],
         right_centre_service_line_segments: list[LineSegment],
         service_line_opposite_segments: list[LineSegment],
         left_inner_segments: list[LineSegment],
@@ -859,39 +859,80 @@ class CourtDetector:
         if not v_lines:
             return 
 
-        # h_lines = filter_horizontal_lines(lines)
-        # if h_lines:
-        #     bottom_h_line = sorted([line for line in h_lines if line.slope == 0], key= lambda line: line.intercept)[-1]
+        detection_roi_gray = roi_gray
+        detection_roi_blur = roi_blur
+        detection_y_offset = 0
 
+        horizontal_lines = filter_horizontal_lines(lines) or []
+        h_lines = [line for line in horizontal_lines if line.slope == 0 and line.intercept <= roi_gray.height // 2]
 
+        if h_lines:
+            bottom_h_line = max(h_lines, key=lambda line: line.intercept)
 
+            cut_y = int(bottom_h_line.intercept) + 1
 
+            if cut_y < roi_gray.height:
+                detection_y_offset = cut_y
+                detection_roi_gray = roi_gray[cut_y:, :]
 
+                detection_roi_blur = cv2.bilateralFilter(detection_roi_gray, d=9, sigmaColor=30, sigmaSpace=30)
 
-        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= 3] # do parametrów
+                min_line_len_px = max(1, int(detection_roi_gray.height * min_line_len_ratio))
+                max_line_gap_px = max(0, int(detection_roi_gray.height * max_line_gap_ratio))
+
+                lines = lines_from_gray_img(
+                    detection_roi_blur,
+                    canny_lower_thresh,
+                    canny_upper_thresh,
+                    hough_thresh,
+                    min_line_len_px,
+                    max_line_gap_px
+                )
+
+                v_lines = filter_horizontal_lines(
+                    lines,
+                    horizontal=False,
+                    include_none_slope=True
+                )
+
 
         if not v_lines:
-            return 
+            return
+
+        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= 3]  # do parametrów
+
+        if not v_lines:
+            return
+
+        if len(v_lines) < 2:
+            return
+
+        v_segments_local = [LineSegment.from_line_and_image(line, detection_roi_gray) for line in v_lines]
+
+
+        if detection_y_offset:
+            v_segments_local = [transform_line_segment(ls, 0, detection_y_offset) for ls in v_segments_local]
+
 
         if get_debug_mode():
             display_img(roi_gray)
-            display_img(roi_blur)
 
-            roi = self.img[y_start:y_end, x_start:x_end]
+            if detection_y_offset:
+                display_img(detection_roi_gray)
+
+            display_img(detection_roi_blur)
+
+            roi = self.img[y_start:y_end,x_start:x_end]
 
             roi_copy = roi.copy()
-            for line in v_lines:
-                p1, p2 = line.limit_to_img(roi)
-                cv2.line(roi_copy, p1, p2, (0, 255, 0), 1)
+            for ls in v_segments_local:
+                cv2.line(roi_copy, (ls.start.x, ls.start.y), (ls.end.x, ls.end.y), (0, 255, 0), 1)
+
             display_img(roi_copy)
-
-        if not v_lines or len(v_lines) < 2:
-            return
-
-        v_segments_local = [LineSegment.from_line_and_image(line, roi_gray) for line in v_lines]
 
         data = []
         ref_distance_x = abs(centre_service_halflines[0].point.x - centre_service_halflines[1].point.x)
+
         for segment_pair in combinations(v_segments_local, 2):
             ls1, ls2 = segment_pair
 
@@ -902,7 +943,6 @@ class CourtDetector:
                 continue
 
             x_diff = abs(ls1.start.x - ls1.end.x) + abs(ls2.start.x - ls2.end.x)
-
             data.append((ls1, ls2, x_diff))
 
         if not data:
@@ -914,6 +954,7 @@ class CourtDetector:
         centre_service_points_opposite = []
         for ls in ls_pair_global:
             intersection = find_line_segments_intersection([ls], service_line_opposite_segments, self.img)[0]
+
             if intersection is not None:
                 centre_service_points_opposite.append(intersection.point)
 
@@ -923,7 +964,7 @@ class CourtDetector:
         left_centre_service_point_opposite, right_centre_service_point_opposite = sorted(centre_service_points_opposite, key=lambda p: p.x)
 
         return (
-            [LineSegment.from_points(left_service_netline_point, left_centre_service_point_opposite)], 
+            [LineSegment.from_points(left_service_netline_point, left_centre_service_point_opposite)],
             [LineSegment.from_points(right_service_netline_point, right_centre_service_point_opposite)]
         )
     
