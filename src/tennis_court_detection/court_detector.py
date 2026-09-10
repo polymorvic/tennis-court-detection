@@ -1,4 +1,5 @@
 import cv2
+from itertools import combinations
 import numpy as np
 from numpy import ma
 import matplotlib.pyplot as plt
@@ -31,8 +32,7 @@ from tennis_court_detection.utils.helpers import (
     check_if_all_segments_lines_none,
     get_mirror_line,
     mask_line_neighborhood_on_edges,
-    find_line_segments_intersection,
-    pair_centre_service_lines_opposite
+    find_line_segments_intersection
 )                        
 from tennis_court_detection.utils.filters import (
     filter_horizontal_lines, 
@@ -830,13 +830,13 @@ class CourtDetector:
         x_bound = (left_service_netline_point.x + right_service_netline_point.x) // 2
         y_bound = (left_service_point_opposite.y + right_service_point_opposite.y) // 2
 
-        margin_width_px = int(self.img.width * margin_ratio)
+        margin_width_px = int(self.img.width * margin_ratio) // 2
         margin_height_px = int(self.img.height * margin_ratio)
 
-        x_start = max(0, x_bound - 20)
+        x_start = max(0, x_bound - margin_width_px)
         x_end = min(self.img.width, x_bound + margin_width_px)
 
-        y_start = max(0, y_bound - 5)
+        y_start = max(0, y_bound - 5) # do parametrow
         y_end = min(self.img.height, y_bound + margin_height_px)
 
         roi_gray = self.img_gray[y_start:y_end, x_start:x_end]
@@ -855,7 +855,23 @@ class CourtDetector:
         )
 
         v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
-        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= 3]
+
+        if not v_lines:
+            return 
+
+        # h_lines = filter_horizontal_lines(lines)
+        # if h_lines:
+        #     bottom_h_line = sorted([line for line in h_lines if line.slope == 0], key= lambda line: line.intercept)[-1]
+
+
+
+
+
+
+        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= 3] # do parametrów
+
+        if not v_lines:
+            return 
 
         if get_debug_mode():
             display_img(roi_gray)
@@ -873,32 +889,38 @@ class CourtDetector:
             return
 
         v_segments_local = [LineSegment.from_line_and_image(line, roi_gray) for line in v_lines]
-        v_segments_global = [transform_line_segment(ls, x_start, y_start) for ls in v_segments_local]
 
-        points_candidates = []
-        for ls in v_segments_global:
+        data = []
+        ref_distance_x = abs(centre_service_halflines[0].point.x - centre_service_halflines[1].point.x)
+        for segment_pair in combinations(v_segments_local, 2):
+            ls1, ls2 = segment_pair
+
+            bottom_distance = abs(ls1.end.x - ls2.end.x)
+            top_distance = abs(ls1.start.x - ls2.start.x)
+
+            if abs(bottom_distance - ref_distance_x) > 2 or abs(top_distance - ref_distance_x) > 2:
+                continue
+
+            x_diff = abs(ls1.start.x - ls1.end.x) + abs(ls2.start.x - ls2.end.x)
+
+            data.append((ls1, ls2, x_diff))
+
+        if not data:
+            return
+
+        ls_pair_local = sorted(data, key=lambda x: x[-1])[0][:-1]
+        ls_pair_global = [transform_line_segment(ls, x_start, y_start) for ls in ls_pair_local]
+
+        centre_service_points_opposite = []
+        for ls in ls_pair_global:
             intersection = find_line_segments_intersection([ls], service_line_opposite_segments, self.img)[0]
             if intersection is not None:
-                points_candidates.append(intersection.point)
+                centre_service_points_opposite.append(intersection.point)
 
-        if not points_candidates or len(points_candidates) < 2:
+        if not centre_service_points_opposite or len(centre_service_points_opposite) < 2:
             return
 
-        ref_points = [centre_service_halflines[0].point, centre_service_halflines[1].point]
-
-        ref_x_avg = (ref_points[0].x + ref_points[1].x) // 2
-        x_tol = roi_gray.width * 0.1
-
-        points_candidates = [
-            point
-            for point in points_candidates
-            if abs(point.x - ref_x_avg) <= x_tol
-        ]
-
-        if not points_candidates or len(points_candidates) < 2:
-            return
-
-        left_centre_service_point_opposite, right_centre_service_point_opposite = pair_centre_service_lines_opposite(points_candidates, ref_points)
+        left_centre_service_point_opposite, right_centre_service_point_opposite = sorted(centre_service_points_opposite, key=lambda p: p.x)
 
         return (
             [LineSegment.from_points(left_service_netline_point, left_centre_service_point_opposite)], 
