@@ -823,16 +823,3 @@ def transform_points(
         
     return transformed_points
 
-
-def pair_centre_service_lines_opposite(
-    points_candidates: list[Point],
-    ref_centre_service_points: tuple[Point, Point],
-) -> list[Point, Point]:
-    ref_distance_x = abs(ref_centre_service_points[0].x - ref_centre_service_points[1].x)
-    best_pair = min(
-        combinations(points_candidates, 2),
-        key=lambda pair: abs(
-            abs(pair[0].x - pair[1].x) - ref_distance_x
-        )
-    )
-    return sorted(best_pair, key=lambda point: point.x)
