@@ -932,7 +932,9 @@ class CourtDetector:
 
         data = []
         ref_distance_x = abs(centre_service_halflines[0].point.x - centre_service_halflines[1].point.x)
-
+        ref_center_x_global = (centre_service_halflines[0].point.x + centre_service_halflines[1].point.x) // 2
+        ref_center_x_local = ref_center_x_global - x_start
+        max_center_x_diff = 5  # do parametrów
         for segment_pair in combinations(v_segments_local, 2):
             ls1, ls2 = segment_pair
 
@@ -940,6 +942,10 @@ class CourtDetector:
             top_distance = abs(ls1.start.x - ls2.start.x)
 
             if abs(bottom_distance - ref_distance_x) > 2 or abs(top_distance - ref_distance_x) > 2:
+                continue
+
+            top_center_x = (ls1.start.x + ls2.start.x) // 2
+            if abs(top_center_x - ref_center_x_local) > max_center_x_diff:
                 continue
 
             x_diff = abs(ls1.start.x - ls1.end.x) + abs(ls2.start.x - ls2.end.x)
