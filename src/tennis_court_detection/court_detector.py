@@ -67,7 +67,10 @@ class CourtDetector:
         crop_center_width_ratio: float,
         roi_height_ratio: float,
         step_height_ratio: float,
-        surface: Surface
+        surface: Surface,
+        bilateral_filter_d: int = 9,
+        bilateral_filter_sigma_color: int = 30,
+        bilateral_filter_sigma_space: int = 30,
     ):
         self.img = NumpyImage(img)
         self.img_gray = NumpyImage(cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY))
@@ -76,9 +79,12 @@ class CourtDetector:
         self.center_crop_img, self.center_crop_h, self.center_crop_w, self.center_crop_margin = crop_center_img(self.img, crop_center_width_ratio)
         self.center_crop_img_gray, *_, self.center_crop_origin_x = crop_center_img(self.img_gray, crop_center_width_ratio)
         self.surface = surface
+        self.bilateral_filter_d = bilateral_filter_d
+        self.bilateral_filter_sigma_color = bilateral_filter_sigma_color
+        self.bilateral_filter_sigma_space = bilateral_filter_sigma_space
 
         if surface == Surface.CLAY or surface == Surface.GRASS:
-            self.center_crop_img_gray = cv2.bilateralFilter(self.center_crop_img_gray, d=9, sigmaColor=30, sigmaSpace=30)
+            self.center_crop_img_gray = cv2.bilateralFilter(self.center_crop_img_gray, d=bilateral_filter_d, sigmaColor=bilateral_filter_sigma_color, sigmaSpace=bilateral_filter_sigma_space)
 
 
     def scan_for_baseline(
@@ -213,7 +219,7 @@ class CourtDetector:
     ) -> tuple[LineSegment, LineSegment, LineSegment, LineSegment]:
         temp_img = self.img.copy()
         if self.surface == Surface.CLAY or self.surface == Surface.GRASS:
-            temp_img = cv2.bilateralFilter(temp_img, d=9, sigmaColor=30, sigmaSpace=30)
+            temp_img = cv2.bilateralFilter(temp_img, d=self.bilateral_filter_d, sigmaColor=self.bilateral_filter_sigma_color, sigmaSpace=self.bilateral_filter_sigma_space)
 
 
         left_outer_intersection = get_boundary_horizontal_intercection(
@@ -379,6 +385,8 @@ class CourtDetector:
         adapt_hough_thresh_step: int = 2,
         adapt_min_line_len_ratio_step: float = 0.02,
         adapt_max_line_gap_ratio_step: float = 0.02,
+        bilateral_filter_sigma_color: int = 75,
+        bilateral_filter_sigma_space: int = 75
     ) -> tuple[HalfLine, HalfLine] | None:
         y_start = intersection_point.y - int(roi_height_up_ratio * self.img.height)
         y_end = intersection_point.y + int(roi_height_bottom_ratio * self.img.height)
@@ -390,7 +398,7 @@ class CourtDetector:
         roi_gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
 
         kernel_size_px = int(kernel_size_ratio * roi.height) | 1
-        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, 75, 75)
+        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
 
         centre_service_line_intersections = None
 
@@ -561,6 +569,8 @@ class CourtDetector:
         height_delta_ratio: float = 0.075, 
         step_ratio: float = 0.01,
         roi_trim_ratio: float = 0.1,
+        bilateral_filter_sigma_color: int = 75,
+        bilateral_filter_sigma_space: int = 75
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -587,7 +597,7 @@ class CourtDetector:
         kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
 
         roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, 75, 75)
+        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
 
         lines, edges = lines_from_gray_img(
             roi_blur,
@@ -820,6 +830,10 @@ class CourtDetector:
         hough_thresh: int = 5,
         min_line_len_ratio: float = 0.2,
         max_line_gap_ratio: float = 0.1,
+        roi_upper_correction_px: int = 5,
+        max_v_line_slope_threshold: int = 3,
+        max_center_x_diff: int = 5,
+        max_distance_x_diff: int = 2
     ) -> tuple[list[LineSegment], list[LineSegment]] | None:
         left_service_netline_point = find_line_segments_intersection(netline_bottom_segments, left_centre_service_line_segments, self.img)[0].point
         right_service_netline_point = find_line_segments_intersection(netline_bottom_segments, right_centre_service_line_segments, self.img)[0].point
@@ -836,11 +850,11 @@ class CourtDetector:
         x_start = max(0, x_bound - margin_width_px)
         x_end = min(self.img.width, x_bound + margin_width_px)
 
-        y_start = max(0, y_bound - 5) # do parametrow
+        y_start = max(0, y_bound - roi_upper_correction_px)
         y_end = min(self.img.height, y_bound + margin_height_px)
 
         roi_gray = self.img_gray[y_start:y_end, x_start:x_end]
-        roi_blur = cv2.bilateralFilter(roi_gray, d=9, sigmaColor=30, sigmaSpace=30)
+        roi_blur = cv2.bilateralFilter(roi_gray, d=self.bilateral_filter_d, sigmaColor=self.bilateral_filter_sigma_color, sigmaSpace=self.bilateral_filter_sigma_space)
 
         min_line_len_px = max(1, int(roi_gray.height * min_line_len_ratio))
         max_line_gap_px = max(0, int(roi_gray.height * max_line_gap_ratio))
@@ -875,7 +889,7 @@ class CourtDetector:
                 detection_y_offset = cut_y
                 detection_roi_gray = roi_gray[cut_y:, :]
 
-                detection_roi_blur = cv2.bilateralFilter(detection_roi_gray, d=9, sigmaColor=30, sigmaSpace=30)
+                detection_roi_blur = cv2.bilateralFilter(detection_roi_gray, d=self.bilateral_filter_d, sigmaColor=self.bilateral_filter_sigma_color, sigmaSpace=self.bilateral_filter_sigma_space)
 
                 min_line_len_px = max(1, int(detection_roi_gray.height * min_line_len_ratio))
                 max_line_gap_px = max(0, int(detection_roi_gray.height * max_line_gap_ratio))
@@ -899,12 +913,9 @@ class CourtDetector:
         if not v_lines:
             return
 
-        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= 3]  # do parametrów
+        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= max_v_line_slope_threshold]  # do parametrów
 
-        if not v_lines:
-            return
-
-        if len(v_lines) < 2:
+        if not v_lines or len(v_lines) < 2:
             return
 
         v_segments_local = [LineSegment.from_line_and_image(line, detection_roi_gray) for line in v_lines]
@@ -934,14 +945,13 @@ class CourtDetector:
         ref_distance_x = abs(centre_service_halflines[0].point.x - centre_service_halflines[1].point.x)
         ref_center_x_global = (centre_service_halflines[0].point.x + centre_service_halflines[1].point.x) // 2
         ref_center_x_local = ref_center_x_global - x_start
-        max_center_x_diff = 5  # do parametrów
         for segment_pair in combinations(v_segments_local, 2):
             ls1, ls2 = segment_pair
 
             bottom_distance = abs(ls1.end.x - ls2.end.x)
             top_distance = abs(ls1.start.x - ls2.start.x)
 
-            if abs(bottom_distance - ref_distance_x) > 2 or abs(top_distance - ref_distance_x) > 2:
+            if abs(bottom_distance - ref_distance_x) > max_distance_x_diff or abs(top_distance - ref_distance_x) > max_distance_x_diff:
                 continue
 
             top_center_x = (ls1.start.x + ls2.start.x) // 2
