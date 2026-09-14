@@ -28,7 +28,6 @@ from tennis_court_detection.utils.helpers import (
     create_reference_court,
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
     pair_2_vertical_lines_by_distance,
-    line_and_line_segments_intersections,
     check_if_all_segments_lines_none,
     get_mirror_line,
     mask_line_neighborhood_on_edges,
@@ -535,17 +534,19 @@ class CourtDetector:
         net_line_segmnets: list[LineSegment]
     ) -> tuple[list[LineSegment], list[LineSegment]]:
 
-        left_service_netline_point = line_and_line_segments_intersections(
-            centre_service_half_lines[0].line, 
+        left_ls = LineSegment.from_line_and_image(centre_service_half_lines[0].line, self.img)
+        left_service_netline_point = find_line_segments_intersection(
+            [left_ls],
             net_line_segmnets, 
             self.img
-        ).point
+        )[0].point
 
-        right_service_netline_point = line_and_line_segments_intersections(
-            centre_service_half_lines[1].line, 
+        right_ls = LineSegment.from_line_and_image(centre_service_half_lines[1].line, self.img)
+        right_service_netline_point = find_line_segments_intersection(
+            [right_ls],
             net_line_segmnets, 
             self.img
-        ).point
+        )[0].point
 
         return [LineSegment.from_points(centre_service_half_lines[0].point, left_service_netline_point)], \
                 [LineSegment.from_points(centre_service_half_lines[1].point, right_service_netline_point)]
@@ -584,8 +585,9 @@ class CourtDetector:
 
         line = [hl for hl in sum(paired_horizontal_half_lines, ()) if hl.line.intercept < limit_y - margin_h_px][0].line
 
-        p_left_top = line_and_line_segments_intersections(line, left_outer_segments, self.img).point
-        p_right_top = line_and_line_segments_intersections(line, right_outer_segments, self.img).point
+        ls = LineSegment.from_line_and_image(line, self.img)
+        p_left_top = find_line_segments_intersection([ls], left_outer_segments, self.img)[0].point
+        p_right_top = find_line_segments_intersection([ls], right_outer_segments, self.img)[0].point
 
         roi = self.img[p_left_top.y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
 
