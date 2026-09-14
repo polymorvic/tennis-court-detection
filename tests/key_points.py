@@ -188,7 +188,6 @@ def run(
         )
 
         if service_lines_opposite_results is None:
-            print(f'fallback: {file.stem}')
             left_centre_service_line_segments_opposite, right_centre_service_line_segments_opposite = (
                 detector.find_centre_service_lines_opposite_fallback(
                     left_centre_service_line_segments, 
