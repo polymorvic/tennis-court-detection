@@ -165,17 +165,26 @@ def ensure_is_baseline(
         return baseline_candidate, False, []
     
     sidelines_global = [transform_line(line, roi_gray, 0, y0) for line in sidelines]
-    
-    count = 0
-    lines = []
+    valid_lines = []
     for line in sidelines_global:
         x_axis_angle = line.theta
         intersection = baseline_candidate.intersection(line, img_gray)
-        if (-90 < x_axis_angle -10 or 10 < x_axis_angle < 90) and intersection is not None:
-            lines.append(line)
-            count += 1
 
-    return baseline_candidate, count > candidates_count, lines
+        if intersection is None:
+            continue
+
+        if not (-90 < x_axis_angle < -10 or 10 < x_axis_angle < 90):
+            continue
+
+        angle = abs(line.theta - baseline_candidate.theta) % 180
+        angle = min(angle, 180 - angle)
+
+        if abs(angle - 90) < 1e-6:
+            continue
+
+        valid_lines.append(line)
+
+    return baseline_candidate, len(valid_lines) >= candidates_count, valid_lines
 
 
 def check_is_service_line(
