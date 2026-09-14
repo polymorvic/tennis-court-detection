@@ -93,6 +93,7 @@ def run(
             continue
         
         if not paired_horizontal_half_lines:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         try:
@@ -102,6 +103,7 @@ def run(
             continue
 
         if result is None:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         service_line_segments, inters = result
@@ -113,6 +115,7 @@ def run(
             continue
 
         if not centre_service_half_lines:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         try:
@@ -129,6 +132,7 @@ def run(
             continue
 
         if not netline_bottom_segments:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         try:
@@ -153,6 +157,7 @@ def run(
             continue
 
         if not netline_top_segments:
+            cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         court_segments = CourtSegmentsCollection(
