@@ -572,7 +572,9 @@ class CourtDetector:
         step_ratio: float = 0.01,
         roi_trim_ratio: float = 0.1,
         bilateral_filter_sigma_color: int = 75,
-        bilateral_filter_sigma_space: int = 75
+        bilateral_filter_sigma_space: int = 75,
+        max_adapt_iter = 5,
+        adapt_step_ratio: float = 0.02,
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -583,52 +585,44 @@ class CourtDetector:
         p_left_bottom = find_line_segments_intersection(left_outer_segments, netline_bottom_segments, self.img)[0].point
 
         limit_y = sorted(netline_bottom_segments, key = lambda ls: ls.line.intercept)[-1].line.intercept
-
-        # img_copy = self.img.copy()
-        # for hf in sum(paired_horizontal_half_lines, ()):
-        #     line = hf.line
-        #     p1, p2 = line.limit_to_img(img_copy)
-        #     cv2.line(img_copy, p1, p2, (255, 0, 0), 1)
-
-        # display_img(img_copy)
-
-
-        # print(f"limit_y: {limit_y}")
-        # print(margin_h_px)
-        # pprint(sum(paired_horizontal_half_lines, ()))
-
+        
         line = [hl for hl in sum(paired_horizontal_half_lines, ()) if hl.line.intercept < limit_y - margin_h_px][0].line
 
         ls = LineSegment.from_line_and_image(line, self.img)
         p_left_top = find_line_segments_intersection([ls], left_outer_segments, self.img)[0].point
         p_right_top = find_line_segments_intersection([ls], right_outer_segments, self.img)[0].point
 
-        roi = self.img[p_left_top.y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
+        result = []
+        i = 0
+        adapt_step_px = int(adapt_step_ratio * self.img.height)
+        while not result and max_adapt_iter > i:
+            
+            origin_y = p_left_top.y - i * adapt_step_px
+            roi = self.img[origin_y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
 
-        roi_trim_px = int(roi_trim_ratio * roi.height)
-        roi = roi[roi_trim_px:-roi_trim_px, :]
-        roi_origin_x = p_left_top.x - margin_w_px
-        roi_origin_y = p_left_top.y + roi_trim_px
+            roi_trim_px = int(roi_trim_ratio * roi.height)
+            roi = roi[roi_trim_px:-roi_trim_px, :]
+            roi_origin_x = p_left_top.x - margin_w_px
+            roi_origin_y = origin_y + roi_trim_px
 
-        kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
+            kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
 
-        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
+            roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
 
-        display_img(roi)
-        display_img(roi_blur)
+            result = lines_from_gray_img(
+                roi_blur,
+                lower_canny_thresh,
+                upper_canny_thresh,
+                hough_thresh,
+                min_line_len_px,
+                max_line_gap_px,
+                return_canny=True
+            )
+            i += 1
 
-        result = lines_from_gray_img(
-            roi_blur,
-            lower_canny_thresh,
-            upper_canny_thresh,
-            hough_thresh,
-            min_line_len_px,
-            max_line_gap_px,
-            return_canny=True
-        )
-
-        
+        if not result:
+            return
 
         lines, edges = result
 
