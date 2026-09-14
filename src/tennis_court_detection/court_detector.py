@@ -795,28 +795,6 @@ class CourtDetector:
 
     def find_centre_service_lines_opposite(
         self,
-        left_centre_service_line_segments: list[LineSegment], 
-        right_centre_service_line_segments: list[LineSegment],
-        service_line_opposite_segments: list[LineSegment]
-    ) -> tuple[list[LineSegment], list[LineSegment]] | None:
-        
-        left_service_point_opposite = line_segments_intersections(left_centre_service_line_segments, service_line_opposite_segments, self.img)
-        right_service_point_opposite = line_segments_intersections(right_centre_service_line_segments, service_line_opposite_segments, self.img)
-
-        if left_service_point_opposite is None or right_service_point_opposite is None:
-            return None
-
-        left_service_netline_point = sorted([left_centre_service_line_segments[0].start, left_centre_service_line_segments[0].end], key= lambda point: point.y)[0]
-        right_service_netline_point = sorted([right_centre_service_line_segments[0].start, right_centre_service_line_segments[0].end], key= lambda point: point.y)[0]
-
-        return (
-            [LineSegment.from_points(left_service_netline_point, left_service_point_opposite.point)], 
-            [LineSegment.from_points(right_service_netline_point, right_service_point_opposite.point)]
-        )
-
-    
-    def find_centre_service_lines_opposite(
-        self,
         netline_bottom_segments: list[LineSegment],
         left_centre_service_line_segments: list[LineSegment],
         right_centre_service_line_segments: list[LineSegment],
@@ -984,3 +962,20 @@ class CourtDetector:
             [LineSegment.from_points(right_service_netline_point, right_centre_service_point_opposite)]
         )
     
+
+    def find_centre_service_lines_opposite_fallback(
+        self,
+        left_centre_service_line_segments: list[LineSegment], 
+        right_centre_service_line_segments: list[LineSegment],
+        service_line_opposite_segments: list[LineSegment]
+    ) -> tuple[list[LineSegment], list[LineSegment]]:
+        left_service_point_opposite = line_segments_intersections(left_centre_service_line_segments, service_line_opposite_segments, self.img)
+        right_service_point_opposite = line_segments_intersections(right_centre_service_line_segments, service_line_opposite_segments, self.img)
+
+        left_service_netline_point = sorted([left_centre_service_line_segments[0].start, left_centre_service_line_segments[0].end], key= lambda point: point.y)[0]
+        right_service_netline_point = sorted([right_centre_service_line_segments[0].start, right_centre_service_line_segments[0].end], key= lambda point: point.y)[0]
+
+        return (
+            [LineSegment.from_points(left_service_netline_point, left_service_point_opposite.point)], 
+            [LineSegment.from_points(right_service_netline_point, right_service_point_opposite.point)]
+        )
