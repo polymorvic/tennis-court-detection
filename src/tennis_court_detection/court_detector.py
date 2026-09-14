@@ -385,7 +385,8 @@ class CourtDetector:
         adapt_min_line_len_ratio_step: float = 0.02,
         adapt_max_line_gap_ratio_step: float = 0.02,
         bilateral_filter_sigma_color: int = 75,
-        bilateral_filter_sigma_space: int = 75
+        bilateral_filter_sigma_space: int = 75,
+        min_v_line_slope_threshold: float = 5.0
     ) -> tuple[HalfLine, HalfLine] | None:
         y_start = intersection_point.y - int(roi_height_up_ratio * self.img.height)
         y_end = intersection_point.y + int(roi_height_bottom_ratio * self.img.height)
@@ -434,7 +435,7 @@ class CourtDetector:
                     display_img(roi_copy)
 
                 v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
-                v_lines = [line for line in v_lines if line.slope is None]
+                v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= min_v_line_slope_threshold]
                 h_lines = filter_horizontal_lines(lines)
 
                 if len(v_lines) >= 2 and h_lines:
@@ -825,7 +826,7 @@ class CourtDetector:
         min_line_len_ratio: float = 0.2,
         max_line_gap_ratio: float = 0.1,
         roi_upper_correction_px: int = 5,
-        max_v_line_slope_threshold: int = 3,
+        min_v_line_slope_threshold: int = 3,
         max_center_x_diff: int = 5,
         max_distance_x_diff: int = 2
     ) -> tuple[list[LineSegment], list[LineSegment]] | None:
@@ -907,7 +908,7 @@ class CourtDetector:
         if not v_lines:
             return
 
-        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= max_v_line_slope_threshold]  # do parametrów
+        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= min_v_line_slope_threshold]
 
         if not v_lines or len(v_lines) < 2:
             return
