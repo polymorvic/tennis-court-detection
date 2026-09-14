@@ -670,20 +670,42 @@ class CourtDetector:
         if not v_shaped_intersections:
             return
 
-        line_segments_all = []
+        ranked_top_netline_candidates = []
         for inter in v_shaped_intersections:
 
-            line_segments = traverse_v_shaped_line_pairs(
-                roi, 
-                edges, 
-                inter
+            inter_global = transform_intersection(inter, roi, roi_origin_x, roi_origin_y)
+
+            roi_h = roi.height
+            y1 = inter_global.point.y - roi_h // 2
+            y2 = y1 + roi_h
+            inter_roi = self.img[y1:y2, roi_origin_x:roi_origin_x + roi.width]
+
+            inter_local = transform_intersection(
+                inter_global,
+                self.img,
+                roi_origin_x,
+                y1,
+                to_global=False
             )
 
-            line_segments_all.append(line_segments)
+            inter_gray = cv2.cvtColor(inter_roi, cv2.COLOR_BGR2GRAY)
+            inter_blur = cv2.bilateralFilter(
+                inter_gray, 
+                kernel_size_px, 
+                bilateral_filter_sigma_color, 
+                bilateral_filter_sigma_space
+            )
+            inter_edges = cv2.Canny(inter_blur, lower_canny_thresh, upper_canny_thresh)
+
+            line_segments = traverse_v_shaped_line_pairs(
+                inter_roi, 
+                inter_edges, 
+                inter_local
+            )
 
             if get_debug_mode():
-                roi_copy = roi.copy()
-                h_delta_px = max(1, int(roi.height * height_delta_ratio))
+                roi_copy = inter_roi.copy()
+                h_delta_px = max(1, int(inter_roi.height * height_delta_ratio))
 
                 for line_segment in line_segments:
                     p1, p2 = line_segment.start, line_segment.end
@@ -700,23 +722,29 @@ class CourtDetector:
                     )
                 display_img(roi_copy)
 
-        line_segments_candidates, white_pixels_ratios = filter_line_segments_by_edges_mask(
-            roi,
-            edges,
-            line_segments_all
-        )
+            line_segments_candidates, white_pixels_ratios = filter_line_segments_by_edges_mask(
+                inter_roi,
+                inter_edges,
+                [line_segments]
+            )
 
-        if not line_segments_candidates:
+            for segments, ratio in zip(line_segments_candidates, white_pixels_ratios):
+                segments_global = [
+                    transform_line_segment(segment, roi_origin_x, y1, to_global=True)
+                    for segment in segments
+                ]
+                ranked_top_netline_candidates.append((segments_global, ratio))
+
+        if not ranked_top_netline_candidates:
             return
 
-        ranked_top_netline_candidates = sorted(zip(line_segments_candidates, white_pixels_ratios), key=lambda x: x[1], reverse=True)
+        ranked_top_netline_candidates = sorted(
+            ranked_top_netline_candidates, 
+            key=lambda x: x[1], 
+            reverse=True
+        )
 
-        top_netline_segments = ranked_top_netline_candidates[0][0]
-        return [
-            transform_line_segment(segment, roi_origin_x, roi_origin_y, to_global=True)
-            for segment in top_netline_segments
-        ]
-
+        return ranked_top_netline_candidates[0][0]
 
     def find_opposite_side_points(
         self,
