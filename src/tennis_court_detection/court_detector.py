@@ -575,6 +575,8 @@ class CourtDetector:
         bilateral_filter_sigma_space: int = 75,
         max_adapt_iter = 5,
         adapt_step_ratio: float = 0.02,
+        min_horizontal_lines: int = 3,
+        max_horizontal_lines_slope: float = 0.5,
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -595,7 +597,7 @@ class CourtDetector:
         result = []
         i = 0
         adapt_step_px = int(adapt_step_ratio * self.img.height)
-        while not result and max_adapt_iter > i:
+        while max_adapt_iter > i:
             
             origin_y = p_left_top.y - i * adapt_step_px
             roi = self.img[origin_y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
@@ -621,6 +623,24 @@ class CourtDetector:
             )
             i += 1
 
+            if not result:
+                continue
+
+            lines, edges = result
+
+            horizontal_lines = [
+                line
+                for line in lines
+                if line.slope is not None
+                and line.slope != 0
+                and abs(line.slope) < max_horizontal_lines_slope
+            ]
+
+            if len(horizontal_lines) >= min_horizontal_lines:
+                break
+
+            result = []
+
         if not result:
             return
 
@@ -636,7 +656,7 @@ class CourtDetector:
 
             display_img(roi_copy)
 
-        h_lines = [line for line in initial_h_lines if line.slope !=0]
+        h_lines = [line for line in initial_h_lines if abs(line.slope) < max_horizontal_lines_slope]
 
         if get_debug_mode():
             for line in h_lines:
