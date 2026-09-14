@@ -153,7 +153,6 @@ class CourtDetector:
             baseline = transform_line(baseline_candidate, roi, self.center_crop_margin, y)
 
             if get_debug_mode():
-                print('baseline global')
                 print(baseline)
 
             if baseline in lines_blacklist:
@@ -173,7 +172,7 @@ class CourtDetector:
             is_scoreboard = False
             if scoreboard_lines:
                 intersections = set(compute_intersections(scoreboard_lines, roi))
-                
+
                 if intersections:
                     for inters in intersections:
                         
