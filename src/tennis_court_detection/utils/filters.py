@@ -445,7 +445,7 @@ def filter_line_segments_by_edges_mask(
     line_segments_all: list[list[LineSegment]],
     h_margin_img_ratio: float = 0.05,
     w_margin_img_ratio: float = 0.1,
-    column_ratio_thresh: float = 0.9
+    column_ratio_thresh: float = 0.8
 ) -> tuple[list[list[LineSegment]], list[float]]:
     roi = check_if_numpy_image(roi)
     h_margin_px = int(h_margin_img_ratio * roi.height)
