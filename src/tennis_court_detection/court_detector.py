@@ -1,4 +1,5 @@
 import cv2
+from pprint import pprint
 from itertools import combinations
 import numpy as np
 from numpy import ma
@@ -562,7 +563,7 @@ class CourtDetector:
         lower_canny_thresh: int = 20,
         upper_canny_thresh: int = 100,
         hough_thresh: int = 50,
-        margin_h_ratio = 0.15,
+        margin_h_ratio = 0.1,
         margin_w_ratio = 0.1,
         kernel_size_ratio = 0.005,
         min_line_len_ratio = 0.2,
@@ -579,9 +580,22 @@ class CourtDetector:
         min_line_len_px = int(min_line_len_ratio * self.img.width)
         max_line_gap_px = int(max_line_gap_ratio * self.img.width)
 
-        p_left_bottom = line_segments_intersections(left_outer_segments, netline_bottom_segments, self.img).point
+        p_left_bottom = find_line_segments_intersection(left_outer_segments, netline_bottom_segments, self.img)[0].point
 
         limit_y = sorted(netline_bottom_segments, key = lambda ls: ls.line.intercept)[-1].line.intercept
+
+        # img_copy = self.img.copy()
+        # for hf in sum(paired_horizontal_half_lines, ()):
+        #     line = hf.line
+        #     p1, p2 = line.limit_to_img(img_copy)
+        #     cv2.line(img_copy, p1, p2, (255, 0, 0), 1)
+
+        # display_img(img_copy)
+
+
+        # print(f"limit_y: {limit_y}")
+        # print(margin_h_px)
+        # pprint(sum(paired_horizontal_half_lines, ()))
 
         line = [hl for hl in sum(paired_horizontal_half_lines, ()) if hl.line.intercept < limit_y - margin_h_px][0].line
 
@@ -601,7 +615,10 @@ class CourtDetector:
         roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
 
-        lines, edges = lines_from_gray_img(
+        display_img(roi)
+        display_img(roi_blur)
+
+        result = lines_from_gray_img(
             roi_blur,
             lower_canny_thresh,
             upper_canny_thresh,
@@ -610,6 +627,10 @@ class CourtDetector:
             max_line_gap_px,
             return_canny=True
         )
+
+        
+
+        lines, edges = result
 
         initial_h_lines = filter_horizontal_lines(lines, slope_thresh=1)
 
