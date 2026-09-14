@@ -188,8 +188,14 @@ def run(
         )
 
         if service_lines_opposite_results is None:
-            print(f'Brak przeciwnych linii serwisowych dla zdjęcia: {file.stem}')
-            left_centre_service_line_segments_opposite, right_centre_service_line_segments_opposite = [], []
+            print(f'fallback: {file.stem}')
+            left_centre_service_line_segments_opposite, right_centre_service_line_segments_opposite = (
+                detector.find_centre_service_lines_opposite_fallback(
+                    left_centre_service_line_segments, 
+                    right_centre_service_line_segments, 
+                    service_line_opposite_segments
+                )
+            )
         else:
             left_centre_service_line_segments_opposite, right_centre_service_line_segments_opposite = service_lines_opposite_results
 
