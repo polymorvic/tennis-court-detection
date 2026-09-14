@@ -13,7 +13,7 @@ from tennis_court_detection.schemas.config import Axis, Params, PicsBlacklist, D
 from tennis_court_detection.schemas.court import HalfLine, ReferenceCourtTennisCourtKeyPoints
 from tennis_court_detection.utils.constants import COURT_DIMENSIONS
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
-from tennis_court_detection.config import get_debug_mode
+from tennis_court_detection.config import get_debug_mode, set_debug_mode
 
 
 def make_odd_kernel_size(
