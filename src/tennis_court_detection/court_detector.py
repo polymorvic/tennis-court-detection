@@ -575,7 +575,7 @@ class CourtDetector:
         bilateral_filter_sigma_space: int = 75,
         max_adapt_iter = 5,
         adapt_step_ratio: float = 0.02,
-        min_horizontal_lines: int = 3,
+        min_horizontal_lines: int = 2,
         max_horizontal_lines_slope: float = 0.5,
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
