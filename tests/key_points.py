@@ -16,14 +16,14 @@ from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.court_detector import CourtDetector
 from tennis_court_detection.utils.annotations import transform_keypoint_annotation
 from tennis_court_detection.utils.testing import get_surface_from_filename
-from cvgeomkit.utils.helpers import read_image_as_numpyimage
+from cvgeomkit.utils.helpers import read_image_as_numpyimage, load_yaml
 
 
 def run(
     test_type: TestType = TestType.KEY_POINTS,
     pics_path: Path | str = 'data/pics',
     params_path: Path | str = 'config/process_params.config.json',
-    blacklist_path: Path | str = 'config/pics_blacklist.config.yaml',
+    edge_cases_path: Path | str = 'config/edge_case_images.yaml',
     annotation_path: Path | str = 'data/annotations.json',
     output_dir: Path | str = 'results'
 ):
@@ -39,7 +39,7 @@ def run(
 
     tcac = TennisCourtAnnotationCollection.from_clean_file(annotation_path)
     params = load_process_params(params_path)
-    blacklist = load_pics_blacklist(blacklist_path).blacklist
+    edge_cases = load_yaml(edge_cases_path)['edge_cases']
 
     basic_params = params.detection_params.basic
     baseline_params = params.detection_params.baseline
@@ -47,16 +47,13 @@ def run(
     results = []
     not_found = []
     no_annotation = []
+    found_count = 0
     for file in tqdm(sorted(pics_path.glob("*png"))):
 
-        if file.name in blacklist:
+        if file.stem in edge_cases:
             continue
 
         ann = tcac.filter_by_image(file.name)
-        # if ann is None:
-        #     print(f'Brak annotacji dla zdjęcia: {file.stem}')
-        #     no_annotation.append(file.name)
-        #     continue
 
         img = read_image_as_numpyimage(file)
         img_copy = img.copy()
@@ -78,6 +75,7 @@ def run(
             segments = detector.find_sidelines_segments(intersections)
 
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
         
@@ -89,20 +87,24 @@ def run(
                 left_segments=left_inner_segments, 
                 right_segments=right_inner_segments)
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
         
         if not paired_horizontal_half_lines:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         try:
             result = detector.find_service_line(paired_horizontal_half_lines[0])
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         if result is None:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
@@ -111,10 +113,12 @@ def run(
         try:
             centre_service_half_lines = detector.find_centre_service_half_lines(inters[0].point)
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         if not centre_service_half_lines:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
@@ -128,10 +132,12 @@ def run(
                 service_line_segments
             )
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         if not netline_bottom_segments:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
@@ -141,6 +147,7 @@ def run(
                 netline_bottom_segments
             )
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
@@ -153,10 +160,12 @@ def run(
                 centre_service_half_lines
             )
         except Exception:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
         if not netline_top_segments:
+            not_found.append(file.name)
             cv2.imwrite(str(not_found_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             continue
 
@@ -214,6 +223,10 @@ def run(
                 cv2.line(img_copy, segment.start, segment.end, (255, 0, 0), 1)
 
         cv2.imwrite(str(test_out_dir / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+        found_count += 1
+
+    print(f"Found count: {found_count}")
+    print(f"Not found count: {len(not_found)}, {len(not_found) / (found_count + len(not_found))}")
 
 
 if __name__ == '__main__':
