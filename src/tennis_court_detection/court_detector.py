@@ -1,4 +1,5 @@
 import cv2
+from pprint import pprint
 from itertools import combinations
 import numpy as np
 from numpy import ma
@@ -28,7 +29,6 @@ from tennis_court_detection.utils.helpers import (
     create_reference_court,
     build_input_for_homography_matrix_from_tennis_court_key_points_models,
     pair_2_vertical_lines_by_distance,
-    line_and_line_segments_intersections,
     check_if_all_segments_lines_none,
     get_mirror_line,
     mask_line_neighborhood_on_edges,
@@ -101,6 +101,7 @@ class CourtDetector:
         max_line_gap_width_ratio: float,
         horizontal_line_slope_tolerance: float,
         delta_ensure_height_ratio: float,
+        crop_center_width_ratio: float = 0.2,
         **kwargs
     ) -> tuple[Line, list[Line]] | None:
         warmup = int(self.img.height / self.step_px * warmup_height_ratio)
@@ -111,6 +112,7 @@ class CourtDetector:
         i = 0
         baseline = None
         lines_blacklist = set()
+        crop_center_width_px = int(crop_center_width_ratio * self.img.width)
         while y > 0:
             i += 1
             y -= self.step_px
@@ -119,6 +121,8 @@ class CourtDetector:
                 continue
 
             roi = crop[y:y + self.roi_h_px].copy()
+            roi_center_x = roi.width // 2
+            
 
             if roi.size == 0:
                 return None
@@ -153,7 +157,6 @@ class CourtDetector:
             baseline = transform_line(baseline_candidate, roi, self.center_crop_margin, y)
 
             if get_debug_mode():
-                print('baseline global')
                 print(baseline)
 
             if baseline in lines_blacklist:
@@ -173,18 +176,67 @@ class CourtDetector:
             is_scoreboard = False
             if scoreboard_lines:
                 intersections = set(compute_intersections(scoreboard_lines, roi))
-                
+
                 if intersections:
                     for inters in intersections:
                         
                         if abs(inters.angle % 180 - 90) == 0:
-                            is_scoreboard = True
-                            lines = [inters.line1, inters.line2]
-                            h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < horizontal_line_slope_tolerance]
-                            if not h_line_local:
-                                continue
-                            h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
-                            lines_blacklist.add(h_line_global)
+
+                            offset = 10 if inters.point.x == roi_center_x else 0
+
+                            roi_center_x_global = roi_center_x + self.center_crop_margin + offset
+                            if inters.point.x < roi_center_x + offset:
+                                # Podejrzane przeciecie znajduje sie po lewej stronie roi_center_x, szukamy po prawej
+                                crop_search_baseline = self.img_gray[y:y + self.roi_h_px, roi_center_x_global: roi_center_x_global + crop_center_width_px]
+
+                            else:
+                                crop_search_baseline = self.img_gray[y:y + self.roi_h_px, roi_center_x_global - crop_center_width_px: roi_center_x_global]
+
+                            scoreboard_lines = lines_from_gray_img(
+                                crop_search_baseline,
+                                canny_lower_thresh + canny_lower_thresh_offset,
+                                canny_upper_thresh + canny_upper_thresh_offset,
+                                hough_thresh + hough_thresh_offset,
+                                min_line_len_px,
+                                max_line_gap_px,
+                            )
+
+                            h_scoreboard_lines = filter_horizontal_lines(scoreboard_lines)
+
+                            if not h_scoreboard_lines:
+                                lines = [inters.line1, inters.line2]
+                                h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < horizontal_line_slope_tolerance]
+                                if not h_line_local:
+                                    continue
+                                is_scoreboard = True
+                                h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
+                                lines_blacklist.add(h_line_global)
+
+                            if get_debug_mode():
+                                img_copy = self.img.copy()
+                                cv2.rectangle(
+                                    img_copy,
+                                    (roi_center_x_global - crop_center_width_px, y),
+                                    (roi_center_x_global, y + self.roi_h_px),
+                                    (0, 255, 0),
+                                    2
+                                )
+                                cv2.rectangle(
+                                    img_copy,
+                                    (roi_center_x_global, y),
+                                    (roi_center_x_global + crop_center_width_px, y + self.roi_h_px),
+                                    (255, 0, 0),
+                                    2
+                                )
+                                display_img(img_copy)
+
+                                crop_search_baseline_copy = cv2.cvtColor(crop_search_baseline, cv2.COLOR_GRAY2RGB)
+                                for line in scoreboard_lines:
+                                    p1, p2 = line.limit_to_img(crop_search_baseline_copy)
+                                    cv2.line(crop_search_baseline_copy, p1, p2, (0, 255, 0), 2)
+
+                                display_img(crop_search_baseline_copy)
+
 
             if is_scoreboard:
                 baseline = None
@@ -386,7 +438,8 @@ class CourtDetector:
         adapt_min_line_len_ratio_step: float = 0.02,
         adapt_max_line_gap_ratio_step: float = 0.02,
         bilateral_filter_sigma_color: int = 75,
-        bilateral_filter_sigma_space: int = 75
+        bilateral_filter_sigma_space: int = 75,
+        min_v_line_slope_threshold: float = 5.0
     ) -> tuple[HalfLine, HalfLine] | None:
         y_start = intersection_point.y - int(roi_height_up_ratio * self.img.height)
         y_end = intersection_point.y + int(roi_height_bottom_ratio * self.img.height)
@@ -435,7 +488,7 @@ class CourtDetector:
                     display_img(roi_copy)
 
                 v_lines = filter_horizontal_lines(lines, horizontal=False, include_none_slope=True)
-                v_lines = [line for line in v_lines if line.slope is None]
+                v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= min_v_line_slope_threshold]
                 h_lines = filter_horizontal_lines(lines)
 
                 if len(v_lines) >= 2 and h_lines:
@@ -535,17 +588,19 @@ class CourtDetector:
         net_line_segmnets: list[LineSegment]
     ) -> tuple[list[LineSegment], list[LineSegment]]:
 
-        left_service_netline_point = line_and_line_segments_intersections(
-            centre_service_half_lines[0].line, 
+        left_ls = LineSegment.from_line_and_image(centre_service_half_lines[0].line, self.img)
+        left_service_netline_point = find_line_segments_intersection(
+            [left_ls],
             net_line_segmnets, 
             self.img
-        ).point
+        )[0].point
 
-        right_service_netline_point = line_and_line_segments_intersections(
-            centre_service_half_lines[1].line, 
+        right_ls = LineSegment.from_line_and_image(centre_service_half_lines[1].line, self.img)
+        right_service_netline_point = find_line_segments_intersection(
+            [right_ls],
             net_line_segmnets, 
             self.img
-        ).point
+        )[0].point
 
         return [LineSegment.from_points(centre_service_half_lines[0].point, left_service_netline_point)], \
                 [LineSegment.from_points(centre_service_half_lines[1].point, right_service_netline_point)]
@@ -561,7 +616,7 @@ class CourtDetector:
         lower_canny_thresh: int = 20,
         upper_canny_thresh: int = 100,
         hough_thresh: int = 50,
-        margin_h_ratio = 0.15,
+        margin_h_ratio = 0.1,
         margin_w_ratio = 0.1,
         kernel_size_ratio = 0.005,
         min_line_len_ratio = 0.2,
@@ -570,7 +625,11 @@ class CourtDetector:
         step_ratio: float = 0.01,
         roi_trim_ratio: float = 0.1,
         bilateral_filter_sigma_color: int = 75,
-        bilateral_filter_sigma_space: int = 75
+        bilateral_filter_sigma_space: int = 75,
+        max_adapt_iter = 5,
+        adapt_step_ratio: float = 0.02,
+        min_horizontal_lines: int = 2,
+        max_horizontal_lines_slope: float = 0.5,
     ) -> list[LineSegment] | None:
         margin_h_px = int(margin_h_ratio * self.img.height)
         margin_w_px = int(margin_w_ratio * self.img.width)
@@ -578,36 +637,67 @@ class CourtDetector:
         min_line_len_px = int(min_line_len_ratio * self.img.width)
         max_line_gap_px = int(max_line_gap_ratio * self.img.width)
 
-        p_left_bottom = line_segments_intersections(left_outer_segments, netline_bottom_segments, self.img).point
+        p_left_bottom = find_line_segments_intersection(left_outer_segments, netline_bottom_segments, self.img)[0].point
 
         limit_y = sorted(netline_bottom_segments, key = lambda ls: ls.line.intercept)[-1].line.intercept
-
+        
         line = [hl for hl in sum(paired_horizontal_half_lines, ()) if hl.line.intercept < limit_y - margin_h_px][0].line
 
-        p_left_top = line_and_line_segments_intersections(line, left_outer_segments, self.img).point
-        p_right_top = line_and_line_segments_intersections(line, right_outer_segments, self.img).point
+        ls = LineSegment.from_line_and_image(line, self.img)
+        p_left_top = find_line_segments_intersection([ls], left_outer_segments, self.img)[0].point
+        p_right_top = find_line_segments_intersection([ls], right_outer_segments, self.img)[0].point
 
-        roi = self.img[p_left_top.y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
+        result = []
+        i = 0
+        adapt_step_px = int(adapt_step_ratio * self.img.height)
+        while max_adapt_iter > i:
+            
+            origin_y = p_left_top.y - i * adapt_step_px
+            roi = self.img[origin_y:p_left_bottom.y, p_left_top.x - margin_w_px:p_right_top.x + margin_w_px]
 
-        roi_trim_px = int(roi_trim_ratio * roi.height)
-        roi = roi[roi_trim_px:-roi_trim_px, :]
-        roi_origin_x = p_left_top.x - margin_w_px
-        roi_origin_y = p_left_top.y + roi_trim_px
+            roi_trim_px = int(roi_trim_ratio * roi.height)
+            roi = roi[roi_trim_px:-roi_trim_px, :]
+            roi_origin_x = p_left_top.x - margin_w_px
+            roi_origin_y = origin_y + roi_trim_px
 
-        kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
+            kernel_size_px = int(kernel_size_ratio * self.img.width) | 1
 
-        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
+            roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            roi_blur = cv2.bilateralFilter(roi_gray, kernel_size_px, bilateral_filter_sigma_color, bilateral_filter_sigma_space)
 
-        lines, edges = lines_from_gray_img(
-            roi_blur,
-            lower_canny_thresh,
-            upper_canny_thresh,
-            hough_thresh,
-            min_line_len_px,
-            max_line_gap_px,
-            return_canny=True
-        )
+            result = lines_from_gray_img(
+                roi_blur,
+                lower_canny_thresh,
+                upper_canny_thresh,
+                hough_thresh,
+                min_line_len_px,
+                max_line_gap_px,
+                return_canny=True
+            )
+            i += 1
+
+            if not result:
+                continue
+
+            lines, edges = result
+
+            horizontal_lines = [
+                line
+                for line in lines
+                if line.slope is not None
+                and line.slope != 0
+                and abs(line.slope) < max_horizontal_lines_slope
+            ]
+
+            if len(horizontal_lines) >= min_horizontal_lines:
+                break
+
+            result = []
+
+        if not result:
+            return
+
+        lines, edges = result
 
         initial_h_lines = filter_horizontal_lines(lines, slope_thresh=1)
 
@@ -619,7 +709,7 @@ class CourtDetector:
 
             display_img(roi_copy)
 
-        h_lines = [line for line in initial_h_lines if line.slope !=0]
+        h_lines = [line for line in initial_h_lines if abs(line.slope) < max_horizontal_lines_slope]
 
         if get_debug_mode():
             for line in h_lines:
@@ -633,20 +723,42 @@ class CourtDetector:
         if not v_shaped_intersections:
             return
 
-        line_segments_all = []
+        ranked_top_netline_candidates = []
         for inter in v_shaped_intersections:
 
-            line_segments = traverse_v_shaped_line_pairs(
-                roi, 
-                edges, 
-                inter
+            inter_global = transform_intersection(inter, roi, roi_origin_x, roi_origin_y)
+
+            roi_h = roi.height
+            y1 = inter_global.point.y - roi_h // 2
+            y2 = y1 + roi_h
+            inter_roi = self.img[y1:y2, roi_origin_x:roi_origin_x + roi.width]
+
+            inter_local = transform_intersection(
+                inter_global,
+                self.img,
+                roi_origin_x,
+                y1,
+                to_global=False
             )
 
-            line_segments_all.append(line_segments)
+            inter_gray = cv2.cvtColor(inter_roi, cv2.COLOR_BGR2GRAY)
+            inter_blur = cv2.bilateralFilter(
+                inter_gray, 
+                kernel_size_px, 
+                bilateral_filter_sigma_color, 
+                bilateral_filter_sigma_space
+            )
+            inter_edges = cv2.Canny(inter_blur, lower_canny_thresh, upper_canny_thresh)
+
+            line_segments = traverse_v_shaped_line_pairs(
+                inter_roi, 
+                inter_edges, 
+                inter_local
+            )
 
             if get_debug_mode():
-                roi_copy = roi.copy()
-                h_delta_px = max(1, int(roi.height * height_delta_ratio))
+                roi_copy = inter_roi.copy()
+                h_delta_px = max(1, int(inter_roi.height * height_delta_ratio))
 
                 for line_segment in line_segments:
                     p1, p2 = line_segment.start, line_segment.end
@@ -663,22 +775,29 @@ class CourtDetector:
                     )
                 display_img(roi_copy)
 
-        line_segments_candidates, white_pixels_ratios = filter_line_segments_by_edges_mask(
-            roi,
-            edges,
-            line_segments_all
-        )
+            line_segments_candidates, white_pixels_ratios = filter_line_segments_by_edges_mask(
+                inter_roi,
+                inter_edges,
+                [line_segments]
+            )
 
-        if not line_segments_candidates:
+            for segments, ratio in zip(line_segments_candidates, white_pixels_ratios):
+                segments_global = [
+                    transform_line_segment(segment, roi_origin_x, y1, to_global=True)
+                    for segment in segments
+                ]
+                ranked_top_netline_candidates.append((segments_global, ratio))
+
+        if not ranked_top_netline_candidates:
             return
 
-        ranked_top_netline_candidates = sorted(zip(line_segments_candidates, white_pixels_ratios), key=lambda x: x[1], reverse=True)
+        ranked_top_netline_candidates = sorted(
+            ranked_top_netline_candidates, 
+            key=lambda x: x[1], 
+            reverse=True
+        )
 
-        top_netline_segments = ranked_top_netline_candidates[0][0]
-        return [
-            transform_line_segment(segment, roi_origin_x, roi_origin_y, to_global=True)
-            for segment in top_netline_segments
-        ]
+        return ranked_top_netline_candidates[0][0]
 
 
     def find_opposite_side_points(
@@ -809,7 +928,7 @@ class CourtDetector:
         min_line_len_ratio: float = 0.2,
         max_line_gap_ratio: float = 0.1,
         roi_upper_correction_px: int = 5,
-        max_v_line_slope_threshold: int = 3,
+        min_v_line_slope_threshold: int = 3,
         max_center_x_diff: int = 5,
         max_distance_x_diff: int = 2
     ) -> tuple[list[LineSegment], list[LineSegment]] | None:
@@ -891,7 +1010,7 @@ class CourtDetector:
         if not v_lines:
             return
 
-        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= max_v_line_slope_threshold]  # do parametrów
+        v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= min_v_line_slope_threshold]
 
         if not v_lines or len(v_lines) < 2:
             return

@@ -13,7 +13,7 @@ from tennis_court_detection.schemas.config import Axis, Params, PicsBlacklist, D
 from tennis_court_detection.schemas.court import HalfLine, ReferenceCourtTennisCourtKeyPoints
 from tennis_court_detection.utils.constants import COURT_DIMENSIONS
 from tennis_court_detection.utils.validators import check_if_numpy_image, validate_number
-from tennis_court_detection.config import get_debug_mode
+from tennis_court_detection.config import get_debug_mode, set_debug_mode
 
 
 def make_odd_kernel_size(
@@ -360,9 +360,14 @@ def pair_2_vertical_lines_by_distance(
     img: ArrayLike,
     v_lines: list[Line],
     min_v_lines_spread_ratio: float = 0.05,
+    min_v_line_slope_threshold: int = 3,
+    max_distance_x_diff: int = 2,
 ) -> tuple[Line, Line, float | int] | None:
     pairs = []
     min_v_lines_spread_px = int(img.width * min_v_lines_spread_ratio)
+
+    v_lines = [line for line in v_lines if line.slope is None or abs(line.slope) >= min_v_line_slope_threshold]
+
     for l1, l2 in combinations(v_lines, 2):
 
         p1_top, p1_bottom = sorted(l1.limit_to_img(img), key=lambda point: point.y)
@@ -371,7 +376,7 @@ def pair_2_vertical_lines_by_distance(
         diff_start = abs(p1_top.x - p2_top.x)
         diff_end = abs(p1_bottom.x - p2_bottom.x)
 
-        if diff_start != diff_end:
+        if abs(diff_start - diff_end) > max_distance_x_diff:
             continue
 
         if l1.intersection(l2, img):
@@ -380,15 +385,22 @@ def pair_2_vertical_lines_by_distance(
         if diff_start < min_v_lines_spread_px or diff_end < min_v_lines_spread_px:
             continue
 
-        pairs.append((l1, l2, diff_start))
+        distance = (diff_start + diff_end) / 2
+        pairs.append((l1, l2, distance))
 
     if not pairs:
         return None
 
     l1, l2, dist = sorted(pairs, key=lambda item: item[-1])[0]
-    l1, l2 = sorted((l1, l2), key=lambda line: line.xv)
+    p1_top, p1_bottom = sorted(l1.limit_to_img(img), key=lambda point: point.y)
+    p2_top, p2_bottom = sorted(l2.limit_to_img(img), key=lambda point: point.y)
 
-    return l1, l2, dist
+    l1, l2 = sorted(
+        ((l1, p1_top, p1_bottom), (l2, p2_top, p2_bottom)),
+        key=lambda item: (item[1].x + item[2].x) / 2
+    )
+
+    return l1[0], l2[0], dist
 
 
 def traverse_vertical_line(
@@ -725,20 +737,6 @@ def build_input_for_homography_matrix_from_tennis_court_key_points_models(
     dst_points_arr = np.array([dst_points_dump[name] for name in point_names], dtype=np.float32)
 
     return ref_points_arr, dst_points_arr, point_names
-
-
-def line_and_line_segments_intersections(
-    line: Line,
-    segments: list[LineSegment],
-    img: ArrayLike
-) -> list[Intersection]:
-    intersections = []
-    for segment in segments:
-        segment_line = Line.from_points(segment.start, segment.end)
-        intersection = line.intersection(segment_line, img)
-        if intersection is not None and point_on_segment(intersection.point, segment):
-            intersections.append(intersection)
-    return intersections[0] if intersections else None
 
 
 def mask_line_neighborhood_on_edges(
