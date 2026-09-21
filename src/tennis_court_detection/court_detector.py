@@ -101,6 +101,7 @@ class CourtDetector:
         max_line_gap_width_ratio: float,
         horizontal_line_slope_tolerance: float,
         delta_ensure_height_ratio: float,
+        crop_center_width_ratio: float = 0.2,
         **kwargs
     ) -> tuple[Line, list[Line]] | None:
         warmup = int(self.img.height / self.step_px * warmup_height_ratio)
@@ -111,6 +112,7 @@ class CourtDetector:
         i = 0
         baseline = None
         lines_blacklist = set()
+        crop_center_width_px = int(crop_center_width_ratio * self.img.width)
         while y > 0:
             i += 1
             y -= self.step_px
@@ -119,6 +121,8 @@ class CourtDetector:
                 continue
 
             roi = crop[y:y + self.roi_h_px].copy()
+            roi_center_x = roi.width // 2
+            
 
             if roi.size == 0:
                 return None
@@ -177,13 +181,62 @@ class CourtDetector:
                     for inters in intersections:
                         
                         if abs(inters.angle % 180 - 90) == 0:
-                            is_scoreboard = True
-                            lines = [inters.line1, inters.line2]
-                            h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < horizontal_line_slope_tolerance]
-                            if not h_line_local:
-                                continue
-                            h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
-                            lines_blacklist.add(h_line_global)
+
+                            offset = 10 if inters.point.x == roi_center_x else 0
+
+                            roi_center_x_global = roi_center_x + self.center_crop_margin + offset
+                            if inters.point.x < roi_center_x + offset:
+                                # Podejrzane przeciecie znajduje sie po lewej stronie roi_center_x, szukamy po prawej
+                                crop_search_baseline = self.img_gray[y:y + self.roi_h_px, roi_center_x_global: roi_center_x_global + crop_center_width_px]
+
+                            else:
+                                crop_search_baseline = self.img_gray[y:y + self.roi_h_px, roi_center_x_global - crop_center_width_px: roi_center_x_global]
+
+                            scoreboard_lines = lines_from_gray_img(
+                                crop_search_baseline,
+                                canny_lower_thresh + canny_lower_thresh_offset,
+                                canny_upper_thresh + canny_upper_thresh_offset,
+                                hough_thresh + hough_thresh_offset,
+                                min_line_len_px,
+                                max_line_gap_px,
+                            )
+
+                            h_scoreboard_lines = filter_horizontal_lines(scoreboard_lines)
+
+                            if not h_scoreboard_lines:
+                                lines = [inters.line1, inters.line2]
+                                h_line_local = [line for line in lines if line.slope is not None and abs(line.slope) < horizontal_line_slope_tolerance]
+                                if not h_line_local:
+                                    continue
+                                is_scoreboard = True
+                                h_line_global = transform_line(h_line_local[0], roi, self.center_crop_margin, y)
+                                lines_blacklist.add(h_line_global)
+
+                            if get_debug_mode():
+                                img_copy = self.img.copy()
+                                cv2.rectangle(
+                                    img_copy,
+                                    (roi_center_x_global - crop_center_width_px, y),
+                                    (roi_center_x_global, y + self.roi_h_px),
+                                    (0, 255, 0),
+                                    2
+                                )
+                                cv2.rectangle(
+                                    img_copy,
+                                    (roi_center_x_global, y),
+                                    (roi_center_x_global + crop_center_width_px, y + self.roi_h_px),
+                                    (255, 0, 0),
+                                    2
+                                )
+                                display_img(img_copy)
+
+                                crop_search_baseline_copy = cv2.cvtColor(crop_search_baseline, cv2.COLOR_GRAY2RGB)
+                                for line in scoreboard_lines:
+                                    p1, p2 = line.limit_to_img(crop_search_baseline_copy)
+                                    cv2.line(crop_search_baseline_copy, p1, p2, (0, 255, 0), 2)
+
+                                display_img(crop_search_baseline_copy)
+
 
             if is_scoreboard:
                 baseline = None
@@ -745,6 +798,7 @@ class CourtDetector:
         )
 
         return ranked_top_netline_candidates[0][0]
+
 
     def find_opposite_side_points(
         self,
