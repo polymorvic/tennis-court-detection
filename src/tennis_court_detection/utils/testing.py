@@ -398,3 +398,15 @@ def compose_reports(
     stats_df = pd.concat([stats_df, summary_row], axis=0)
     stats_df.iloc[-2:, 0] = ""
     return report_df_detailed, report_df_summary, stats_df
+
+
+def save_reports(
+    report_df_detailed: pd.DataFrame,
+    report_df_summary: pd.DataFrame,
+    stats_df: pd.DataFrame,
+    output_path: str
+) -> None:
+    with pd.ExcelWriter(output_path) as writer:
+        report_df_detailed.to_excel(writer, sheet_name="Detailed", index=False)
+        report_df_summary.to_excel(writer, sheet_name="Summary", index=False)
+        stats_df.to_excel(writer, sheet_name="Stats", index=False)
