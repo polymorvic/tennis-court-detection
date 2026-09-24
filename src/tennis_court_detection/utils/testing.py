@@ -410,3 +410,20 @@ def save_reports(
         report_df_detailed.to_excel(writer, sheet_name="Detailed", index=False)
         report_df_summary.to_excel(writer, sheet_name="Summary", index=False)
         stats_df.to_excel(writer, sheet_name="Stats", index=False)
+
+
+def put_points_on_image(
+    img: ArrayLike,
+    gt_points: dict[str, Point],
+    pred_points: dict[str, Point],
+    radius: int = 2
+) -> ArrayLike:
+    img_copy = img.copy()
+
+    for point in pred_points.values():
+        cv2.circle(img_copy, point, radius=radius, color=(0, 255, 0), thickness=-1)
+
+    for point in gt_points.values():
+        cv2.circle(img_copy, point, radius=radius, color=(255, 0, 0), thickness=-1)
+
+    return img_copy
