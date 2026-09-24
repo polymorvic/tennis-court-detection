@@ -365,3 +365,36 @@ def calculate_error(
     }
 
     return distances, summary_distances, stats
+
+
+def compose_reports(
+    detail_result_rows: list[dict[str, float]],
+    summary_result_rows: list[dict[str, float]],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    report_df_detailed = pd.DataFrame(detail_result_rows)
+    report_df_detailed = report_df_detailed[[report_df_detailed.columns[-1], *report_df_detailed.columns[:-1]]]
+
+    report_df_summary = pd.DataFrame(summary_result_rows)
+    report_df_summary = report_df_summary[[report_df_summary.columns[-1], *report_df_summary.columns[:-1]]]
+
+    stats_df = pd.concat(
+        [
+            report_df_detailed.mean(axis=0, numeric_only=True),
+            report_df_detailed.min(axis=0, numeric_only=True),
+            report_df_detailed.max(axis=0, numeric_only=True),
+            report_df_detailed.std(axis=0, numeric_only=True)
+        ], axis=1)\
+        .rename(columns={0: 'mean', 1: 'min', 2: 'max', 3: 'std'})
+
+    melted_df = report_df_detailed.melt(id_vars=['image_name'], var_name='metric', value_name='value')['value']
+
+    summary_row = pd.DataFrame({
+        'mean': ["", melted_df.mean()],
+        'min': ["", melted_df.min()],
+        'max': ["", melted_df.max()],
+        'std': ["", melted_df.std()]
+    })
+
+    stats_df = pd.concat([stats_df, summary_row], axis=0)
+    stats_df.iloc[-2:, 0] = ""
+    return report_df_detailed, report_df_summary, stats_df
