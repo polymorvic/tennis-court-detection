@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+from collections import Counter
 from typing import ClassVar, Literal, Self, Type
 
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ from tennis_court_detection.schemas.annotations import (
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.common import ArrayLike
 
-from tennis_court_detection.utils.testing import layout_is_valid
+from tennis_court_detection.utils.testing import layout_validation_errors
     
 
 def transform_keypoint_annotation(
@@ -111,21 +112,23 @@ class TennisCourtAnnotationCollection[AT: ImageAnnotation]:
         return cleaned
     
 
-    def validate(self) -> list[str]:
+    def validate(self) -> dict[str, dict]:
         if not self.cleaned_annotations:
             raise ValueError("Clean annotations not set")
 
-        invalid_names = []
+        errors_by_name = {}
         for name, ann in self.cleaned_annotations.items():
-            labels = [kp.label for kp in ann.key_points]
-            unique_count = len(set(labels))
-            if unique_count != len(TennisCourtKeyPointLabel) or unique_count != len(labels):
-                invalid_names.append(name)
+            counts = Counter(kp.label for kp in ann.key_points)
+            missing = [label.value for label in TennisCourtKeyPointLabel if counts[label] == 0]
+            duplicated = [label.value for label, count in counts.items() if count > 1]
 
-            elif not layout_is_valid(ann):
-                invalid_names.append(name)
+            errors = {"missing": missing, "duplicated": duplicated} if missing or duplicated \
+                else {"layout": layout_validation_errors(ann)}
 
-        return invalid_names
+            if any(errors.values()):
+                errors_by_name[name] = errors
+
+        return errors_by_name
     
 
     def _concat_files(self, extension: str = 'json') -> _RawAnnotations:
