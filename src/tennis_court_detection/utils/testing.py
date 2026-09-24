@@ -384,15 +384,15 @@ def compose_reports(
             report_df_detailed.max(axis=0, numeric_only=True),
             report_df_detailed.std(axis=0, numeric_only=True)
         ], axis=1)\
-        .rename(columns={0: 'mean', 1: 'min', 2: 'max', 3: 'std'})
+        .rename(columns={0: 'mean', 1: 'min', 2: 'max', 3: 'std'})\
+        .reset_index(names='point')
 
-    melted_df = report_df_detailed.melt(id_vars=['image_name'], var_name='metric', value_name='value')['value']
-
+    melted_vals = report_df_detailed.melt(id_vars=['image_name'], var_name='metric', value_name='value')['value']
     summary_row = pd.DataFrame({
-        'mean': ["", melted_df.mean()],
-        'min': ["", melted_df.min()],
-        'max': ["", melted_df.max()],
-        'std': ["", melted_df.std()]
+        'mean': ["", melted_vals.mean()],
+        'min': ["", melted_vals.min()],
+        'max': ["", melted_vals.max()],
+        'std': ["", melted_vals.std()]
     })
 
     stats_df = pd.concat([stats_df, summary_row], axis=0)
