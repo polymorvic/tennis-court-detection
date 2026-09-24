@@ -19,3 +19,39 @@ class ReferenceTennisCourtDimensions:
 
 COURT_DIMENSIONS = ReferenceTennisCourtDimensions()
 
+
+CLOSER_SIDE_POINTS = [
+	'left_service_point',
+	'right_service_point',
+	'left_outer_baseline_point',
+	'left_inner_baseline_point',
+	'right_inner_baseline_point',
+	'right_outer_baseline_point',
+	'left_centre_service_point',
+	'right_centre_service_point',
+]
+
+
+NET_POINTS = [
+	'left_outer_netline_point',
+	'left_inner_netline_point',
+	'right_inner_netline_point',
+	'right_outer_netline_point',
+	'left_service_netline_point',
+	'right_service_netline_point',
+	'left_top_netline_point',
+	'middle_top_netline_point',
+	'right_top_netline_point'
+]
+
+
+OPPOSITE_SIDE_POINTS = [
+	'left_service_point_opposite',
+	'left_centre_service_point_opposite',
+	'right_centre_service_point_opposite',
+	'right_service_point_opposite',
+	'right_outer_baseline_point_opposite',
+	'right_inner_baseline_point_opposite',
+	'left_inner_baseline_point_opposite',
+	'left_outer_baseline_point_opposite'
+]
