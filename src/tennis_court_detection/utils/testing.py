@@ -427,3 +427,36 @@ def put_points_on_image(
         cv2.circle(img_copy, point, radius=radius, color=(255, 0, 0), thickness=-1)
 
     return img_copy
+
+
+def put_legend_on_image(
+    img: ArrayLike,
+    mean_error: float,
+    min_error: float,
+    max_error: float,
+    std_error: float,
+    gt_color: tuple[int, int, int] = (255, 0, 0),
+    pred_color: tuple[int, int, int] = (0, 255, 0),
+) -> ArrayLike:
+    legend_width = 220
+    legend_height = 145
+
+    cv2.rectangle(img, (0, 0), (legend_width, legend_height), color=(0, 0, 0), thickness=-1)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.45
+    text_color = (255, 255, 255)
+    thickness = 1
+
+    cv2.circle(img, (12, 17), 5, gt_color, -1)
+    cv2.putText(img, "Ground truth", (25, 22), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
+    cv2.circle(img, (12, 42), 5, pred_color, -1)
+    cv2.putText(img, "Prediction", (25, 47), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
+    cv2.putText(img, f"Mean error: {mean_error:.2f}", (12, 75), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    cv2.putText(img, f"Min error: {min_error:.2f}", (12, 95), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    cv2.putText(img, f"Max error: {max_error:.2f}", (12, 115), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    cv2.putText(img, f"Std error: {std_error:.2f}", (12, 135), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
+    return img
