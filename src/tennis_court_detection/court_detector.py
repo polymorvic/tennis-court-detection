@@ -1098,3 +1098,54 @@ class CourtDetector:
             [LineSegment.from_points(left_service_netline_point, left_service_point_opposite.point)], 
             [LineSegment.from_points(right_service_netline_point, right_service_point_opposite.point)]
         )
+
+
+    def get_all_intersections(self,
+        baseline_segments:list[LineSegment],
+        left_outer_segments: list[LineSegment],
+        left_inner_segments: list[LineSegment],
+        right_inner_segments: list[LineSegment],
+        right_outer_segments: list[LineSegment],
+        service_line_segments: list[LineSegment],
+        left_centre_service_line_segments: list[LineSegment],
+        right_centre_service_line_segments: list[LineSegment],
+        netline_bottom_segments: list[LineSegment],
+        netline_top_segments: list[LineSegment],
+        baseline_opposite_segments: list[LineSegment],
+        service_line_opposite_segments: list[LineSegment],
+        left_centre_service_line_segments_opposite: list[LineSegment],
+        right_centre_service_line_segments_opposite: list[LineSegment]
+    ) -> dict[str, Point]:
+
+        return {
+            #left side intersections
+            "left_inner_netline_point": find_line_segments_intersection(left_inner_segments, netline_bottom_segments, self.img)[0].point,
+            "left_outer_netline_point":  find_line_segments_intersection(left_outer_segments, netline_bottom_segments, self.img)[0].point,
+            "left_outer_baseline_point": find_line_segments_intersection(left_outer_segments, baseline_segments, self.img)[0].point,
+            "left_inner_baseline_point": find_line_segments_intersection(left_inner_segments, baseline_segments, self.img)[0].point,
+            "left_service_point": find_line_segments_intersection(left_inner_segments, service_line_segments, self.img)[0].point,
+            "left_outer_baseline_point_opposite": find_line_segments_intersection(left_outer_segments, baseline_opposite_segments, self.img)[0].point,
+            "left_inner_baseline_point_opposite": find_line_segments_intersection(left_inner_segments, baseline_opposite_segments, self.img)[0].point,
+            "left_service_point": find_line_segments_intersection(left_inner_segments, service_line_segments, self.img)[0].point,
+            "left_service_point_opposite": find_line_segments_intersection(left_inner_segments, service_line_opposite_segments, self.img)[0].point,
+
+            #right side intersections
+            "right_inner_netline_point": find_line_segments_intersection(right_inner_segments, netline_bottom_segments, self.img)[0].point,
+            "right_outer_netline_point":  find_line_segments_intersection(right_outer_segments, netline_bottom_segments, self.img)[0].point,
+            "right_outer_baseline_point": find_line_segments_intersection(right_outer_segments, baseline_segments, self.img)[0].point,
+            "right_inner_baseline_point": find_line_segments_intersection(right_inner_segments, baseline_segments, self.img)[0].point,
+            "right_service_point": find_line_segments_intersection(right_inner_segments, service_line_segments, self.img)[0].point,
+            "right_outer_baseline_point_opposite": find_line_segments_intersection(right_outer_segments, baseline_opposite_segments, self.img)[0].point,
+            "right_inner_baseline_point_opposite": find_line_segments_intersection(right_inner_segments, baseline_opposite_segments, self.img)[0].point,
+            "right_service_point": find_line_segments_intersection(right_inner_segments, service_line_segments, self.img)[0].point,
+            "right_service_point_opposite": find_line_segments_intersection(right_inner_segments, service_line_opposite_segments, self.img)[0].point,
+
+            # middle court intersections
+            "left_centre_service_point": find_line_segments_intersection(left_centre_service_line_segments, service_line_segments, self.img)[0].point,
+            "right_centre_service_point": find_line_segments_intersection(right_centre_service_line_segments, service_line_segments, self.img)[0].point,
+            "left_centre_service_point_opposite": find_line_segments_intersection(left_centre_service_line_segments_opposite, service_line_opposite_segments, self.img)[0].point,
+            "right_centre_service_point_opposite": find_line_segments_intersection(right_centre_service_line_segments_opposite, service_line_opposite_segments, self.img)[0].point,
+
+            "left_service_netline_point": find_line_segments_intersection(left_centre_service_line_segments, netline_bottom_segments, self.img)[0].point,
+            "right_service_netline_point": find_line_segments_intersection(right_centre_service_line_segments, netline_bottom_segments, self.img)[0].point,
+        }

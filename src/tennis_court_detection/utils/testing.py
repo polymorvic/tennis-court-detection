@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 from tennis_court_detection.schemas.annotations import ImageAnnotation, TennisCourtKeyPointLabel
 from tennis_court_detection.schemas.testing import TestType
+from tennis_court_detection.utils.constants import CLOSER_SIDE_POINTS, NET_POINTS, OPPOSITE_SIDE_POINTS
 from tennis_court_detection.utils.validators import check_if_numpy_image
 from tennis_court_detection.schemas.config import Surface
 
@@ -298,3 +299,114 @@ def layout_is_valid(
     )
     return baseline_x and service_x and netline_x and top_net_x and leftmost and rightmost and bands_y and flare
 
+
+POINT_WEIGHTS = {
+    'left_outer_baseline_point': 1,
+    'left_inner_baseline_point': 1,
+    'right_inner_baseline_point': 1,
+    'right_outer_baseline_point': 1,
+
+    'left_service_point': 2,
+    'right_service_point': 2,
+    'left_centre_service_point': 2,
+    'right_centre_service_point': 2,
+
+    'left_outer_netline_point': 3,
+    'left_inner_netline_point': 3,
+    'right_inner_netline_point': 3,
+    'right_outer_netline_point': 3,
+    'left_service_netline_point': 3,
+    'right_service_netline_point': 3,
+
+    'left_service_point_opposite': 4,
+    'left_centre_service_point_opposite': 4,
+    'right_centre_service_point_opposite': 4,
+    'right_service_point_opposite': 4,
+
+    'right_outer_baseline_point_opposite': 5,
+    'right_inner_baseline_point_opposite': 5,
+    'left_inner_baseline_point_opposite': 5,
+    'left_outer_baseline_point_opposite': 5,
+
+    'left_top_netline_point': 0,
+    'middle_top_netline_point': 0,
+    'right_top_netline_point': 0,
+}
+
+
+def calculate_error(
+    gt_points: dict[str, Point], 
+    pred_points: dict[str, Point]
+) -> tuple[dict, dict[str, float], dict[str, float]]:
+    distances = {
+        name: float(point.distance(gt_points[name]))
+        for name, point in pred_points.items()
+        if name in gt_points
+    }
+    mean_distance = sum(distances.values()) / len(distances)
+    weighted_mean_distance = sum(distances.get(key, 0) * weight for key, weight in POINT_WEIGHTS.items()) / sum(POINT_WEIGHTS.values())
+
+    closer_side_points = sum(distances.get(point, 0) for point in CLOSER_SIDE_POINTS) / len(CLOSER_SIDE_POINTS)
+    net_points = sum(distances.get(point, 0) for point in NET_POINTS) / len(NET_POINTS)
+    opposite_side_points = sum(distances.get(point, 0) for point in OPPOSITE_SIDE_POINTS) / len(OPPOSITE_SIDE_POINTS)
+
+    summary_distances = {
+        'all_mean_error': mean_distance,
+        'all_weighted_mean_error': weighted_mean_distance,
+        'closer_side_points_error': closer_side_points,
+        'net_points_error': net_points,
+        'opposite_side_points_error': opposite_side_points,
+    }
+
+    stats = {
+        'min_error': min(distances.values()),
+        'max_error': max(distances.values()),
+        'std_error': float(np.array(list(distances.values())).std())
+    }
+
+    return distances, summary_distances, stats
+
+
+def compose_reports(
+    detail_result_rows: list[dict[str, float]],
+    summary_result_rows: list[dict[str, float]],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    report_df_detailed = pd.DataFrame(detail_result_rows)
+    report_df_detailed = report_df_detailed[[report_df_detailed.columns[-1], *report_df_detailed.columns[:-1]]]
+
+    report_df_summary = pd.DataFrame(summary_result_rows)
+    report_df_summary = report_df_summary[[report_df_summary.columns[-1], *report_df_summary.columns[:-1]]]
+
+    stats_df = pd.concat(
+        [
+            report_df_detailed.mean(axis=0, numeric_only=True),
+            report_df_detailed.min(axis=0, numeric_only=True),
+            report_df_detailed.max(axis=0, numeric_only=True),
+            report_df_detailed.std(axis=0, numeric_only=True)
+        ], axis=1)\
+        .rename(columns={0: 'mean', 1: 'min', 2: 'max', 3: 'std'})\
+        .reset_index(names='point')
+
+    melted_vals = report_df_detailed.melt(id_vars=['image_name'], var_name='metric', value_name='value')['value']
+    summary_row = pd.DataFrame({
+        'mean': ["", melted_vals.mean()],
+        'min': ["", melted_vals.min()],
+        'max': ["", melted_vals.max()],
+        'std': ["", melted_vals.std()]
+    })
+
+    stats_df = pd.concat([stats_df, summary_row], axis=0)
+    stats_df.iloc[-2:, 0] = ""
+    return report_df_detailed, report_df_summary, stats_df
+
+
+def save_reports(
+    report_df_detailed: pd.DataFrame,
+    report_df_summary: pd.DataFrame,
+    stats_df: pd.DataFrame,
+    output_path: str
+) -> None:
+    with pd.ExcelWriter(output_path) as writer:
+        report_df_detailed.to_excel(writer, sheet_name="Detailed", index=False)
+        report_df_summary.to_excel(writer, sheet_name="Summary", index=False)
+        stats_df.to_excel(writer, sheet_name="Stats", index=False)
