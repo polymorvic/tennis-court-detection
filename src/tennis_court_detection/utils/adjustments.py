@@ -897,7 +897,7 @@ def traverse_v_shaped_line_pairs(
     return line_segments
 
 
-def trim_side_line_segments(
+def trim_side_line_segments_to_intersection(
     base_segments: list[LineSegment],
     crossing_segments: list[LineSegment],
     img: ArrayLike
