@@ -922,3 +922,48 @@ def clean_side_line_segments(
             cleaned_segments.append(ls)
     return cleaned_segments
 
+
+def adjust_slope_and_intercept_of_line_segments(
+    segments: list[LineSegment],
+) -> list[LineSegment]:
+    line_slope_median = np.median([ls.line.slope for ls in segments])
+    line_slope_std = np.std([ls.line.slope for ls in segments])
+
+    line_intercept_median = np.median([ls.line.intercept for ls in segments])
+    line_intercept_std = np.std([ls.line.intercept for ls in segments])
+
+    slope_interval = (line_slope_median - line_slope_std, line_slope_median + line_slope_std)
+    intercept_interval = (line_intercept_median - line_intercept_std, line_intercept_median + line_intercept_std)
+
+    def is_valid(ls):
+        return (
+            slope_interval[0] <= ls.line.slope <= slope_interval[1]
+            and intercept_interval[0] <= ls.line.intercept <= intercept_interval[1]
+        )
+
+    adjusted_segments = []
+    i = 0
+    while i < len(segments):
+        if is_valid(segments[i]):
+            adjusted_segments.append(segments[i])
+            i += 1
+            continue
+
+        i += 1
+        while i < len(segments) and not is_valid(segments[i]):
+            i += 1
+
+        if adjusted_segments and i < len(segments):
+            adjusted_segments.append(
+                LineSegment(
+                    start=adjusted_segments[-1].end,
+                    end=segments[i].start,
+                )
+            )
+
+    return adjusted_segments
+
+
+# uzupelnij braki w ls jesli sa 
+
+# wyrownaj koncowki lsow
