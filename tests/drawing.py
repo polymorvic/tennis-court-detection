@@ -14,7 +14,8 @@ from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.utils.adjustments import (
     trim_side_line_segments_to_intersection,
     remove_outlier_side_line_segments,
-    adjust_segments_by_line
+    adjust_segments_by_line,
+    fill_line_segments_gaps
 )
 from tennis_court_detection.court_detector import CourtDetector
 from tennis_court_detection.utils.testing import get_surface_from_filename
@@ -52,8 +53,6 @@ def run(
     not_found = []
     found_count = 0
     for file in tqdm(sorted(pics_path.glob("*png"))):
-
-        print(file.name)
 
         if file.stem in edge_cases:
             continue
@@ -230,6 +229,11 @@ def run(
         right_inner_segments = adjust_segments_by_line(right_inner_segments)
         left_outer_segments = adjust_segments_by_line(left_outer_segments)
         right_outer_segments = adjust_segments_by_line(right_outer_segments)
+
+        left_inner_segments = fill_line_segments_gaps(left_inner_segments)
+        right_inner_segments = fill_line_segments_gaps(right_inner_segments)
+        left_outer_segments = fill_line_segments_gaps(left_outer_segments)
+        right_outer_segments = fill_line_segments_gaps(right_outer_segments)
 
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 
