@@ -14,7 +14,7 @@ from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.utils.adjustments import (
     trim_side_line_segments_to_intersection,
     remove_outlier_side_line_segments,
-    adjust_slope_and_intercept_of_line_segments
+    adjust_segments_by_line
 )
 from tennis_court_detection.court_detector import CourtDetector
 from tennis_court_detection.utils.testing import get_surface_from_filename
@@ -226,10 +226,10 @@ def run(
         left_outer_segments = remove_outlier_side_line_segments(left_outer_segments)
         right_outer_segments = remove_outlier_side_line_segments(right_outer_segments)
 
-        left_inner_segments = adjust_slope_and_intercept_of_line_segments(left_inner_segments)
-        right_inner_segments = adjust_slope_and_intercept_of_line_segments(right_inner_segments)
-        left_outer_segments = adjust_slope_and_intercept_of_line_segments(left_outer_segments)
-        right_outer_segments = adjust_slope_and_intercept_of_line_segments(right_outer_segments)
+        left_inner_segments = adjust_segments_by_line(left_inner_segments)
+        right_inner_segments = adjust_segments_by_line(right_inner_segments)
+        left_outer_segments = adjust_segments_by_line(left_outer_segments)
+        right_outer_segments = adjust_segments_by_line(right_outer_segments)
 
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 

@@ -923,19 +923,27 @@ def remove_outlier_side_line_segments(
     return cleaned_segments
 
 
-def adjust_slope_and_intercept_of_line_segments(
+def adjust_segments_by_line(
     segments: list[LineSegment],
 ) -> list[LineSegment]:
-    line_slope_median = np.median([ls.line.slope for ls in segments])
-    line_slope_std = np.std([ls.line.slope for ls in segments])
+    non_vertical_segments = [
+        ls for ls in segments
+        if ls.line.slope is not None and ls.line.intercept is not None
+    ]
 
-    line_intercept_median = np.median([ls.line.intercept for ls in segments])
-    line_intercept_std = np.std([ls.line.intercept for ls in segments])
+    line_slope_median = np.median([ls.line.slope for ls in non_vertical_segments])
+    line_slope_std = np.std([ls.line.slope for ls in non_vertical_segments])
+
+    line_intercept_median = np.median([ls.line.intercept for ls in non_vertical_segments])
+    line_intercept_std = np.std([ls.line.intercept for ls in non_vertical_segments])
 
     slope_interval = (line_slope_median - line_slope_std, line_slope_median + line_slope_std)
     intercept_interval = (line_intercept_median - line_intercept_std, line_intercept_median + line_intercept_std)
 
     def is_valid(ls):
+        if ls.line.slope is None or ls.line.intercept is None:
+            return False
+
         return (
             slope_interval[0] <= ls.line.slope <= slope_interval[1]
             and intercept_interval[0] <= ls.line.intercept <= intercept_interval[1]
@@ -943,6 +951,7 @@ def adjust_slope_and_intercept_of_line_segments(
 
     adjusted_segments = []
     i = 0
+
     while i < len(segments):
         if is_valid(segments[i]):
             adjusted_segments.append(segments[i])
@@ -954,12 +963,13 @@ def adjust_slope_and_intercept_of_line_segments(
             i += 1
 
         if adjusted_segments and i < len(segments):
-            adjusted_segments.append(
-                LineSegment(
-                    start=adjusted_segments[-1].end,
-                    end=segments[i].start,
+            start = adjusted_segments[-1].end
+            end = segments[i].start
+
+            if start != end:
+                adjusted_segments.append(
+                    LineSegment(start=start, end=end)
                 )
-            )
 
     return adjusted_segments
 
