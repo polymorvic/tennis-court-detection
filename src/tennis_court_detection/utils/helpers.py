@@ -644,6 +644,25 @@ def find_line_segments_intersection(
     return None, None, None
 
 
+def find_all_line_segments_intersections(
+    line_segments1: list[LineSegment], 
+    line_segments2: list[LineSegment], 
+    img: ArrayLike
+ ) -> tuple[Intersection, LineSegment, LineSegment] | tuple[None, None, None]:
+    intersections = []
+    for ls1 in line_segments1:
+        for ls2 in line_segments2:
+            intersection = ls1.line.intersection(ls2.line, img)
+
+            if intersection is None:
+                continue
+
+            if point_in_segment(intersection, ls1) and point_in_segment(intersection, ls2):
+                intersections.append((intersection, ls1, ls2))
+
+    return intersections
+
+
 def create_reference_court(
     ref_img_height: int = 25_000, 
     ref_img_width: int = 11_000, 
