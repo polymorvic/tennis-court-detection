@@ -223,81 +223,128 @@ def group_pics_by_match(
     }
 
 
-def layout_is_valid(
-    ann: ImageAnnotation
-) -> bool:
-    p = {kp.label: kp.coordinates for kp in ann.key_points}
-    x = lambda lbl: p[lbl].x
-    y = lambda lbl: p[lbl].y
-
+def layout_validation_errors(
+    ann: ImageAnnotation,
+) -> list[str]:
     L = TennisCourtKeyPointLabel
+    p = {kp.label: kp.coordinates for kp in ann.key_points}
 
-    baseline_x = (
-        x(L.left_outer_baseline_point)
-        < x(L.left_inner_baseline_point)
-        < x(L.right_inner_baseline_point)
-        < x(L.right_outer_baseline_point)
+    bad = set()
+    def check_x_increasing(*labels):
+        for a, b in zip(labels, labels[1:]):
+            if p[a].x >= p[b].x:
+                bad.update([a, b])
+
+    def check_x_decreasing(*labels):
+        for a, b in zip(labels, labels[1:]):
+            if p[a].x <= p[b].x:
+                bad.update([a, b])
+
+    def check_y(*rows):
+        for upper, lower in zip(rows, rows[1:]):
+            upper_point = max(upper, key=lambda label: p[label].y)
+            lower_point = min(lower, key=lambda label: p[label].y)
+
+            if p[upper_point].y >= p[lower_point].y:
+                bad.update([upper_point, lower_point])
+
+    baseline = (
+        L.left_outer_baseline_point,
+        L.left_inner_baseline_point,
+        L.right_inner_baseline_point,
+        L.right_outer_baseline_point,
     )
-    service_x = (
-        x(L.left_service_point)
-        < x(L.left_centre_service_point)
-        < x(L.right_centre_service_point)
-        < x(L.right_service_point)
+
+    service = (
+        L.left_service_point,
+        L.left_centre_service_point,
+        L.right_centre_service_point,
+        L.right_service_point,
     )
-    netline_x = (
-        x(L.left_outer_netline_point)
-        < x(L.left_inner_netline_point)
-        < x(L.left_service_netline_point)
-        < x(L.right_service_netline_point)
-        < x(L.right_inner_netline_point)
-        < x(L.right_outer_netline_point)
+
+    netline = (
+        L.left_outer_netline_point,
+        L.left_inner_netline_point,
+        L.left_service_netline_point,
+        L.right_service_netline_point,
+        L.right_inner_netline_point,
+        L.right_outer_netline_point,
     )
-    top_net_x = (
-        x(L.left_top_netline_point)
-        < x(L.middle_top_netline_point)
-        < x(L.right_top_netline_point)
+
+    top_netline = (
+        L.left_top_netline_point,
+        L.middle_top_netline_point,
+        L.right_top_netline_point,
     )
-    others = [c for lbl, c in p.items() if lbl is not L.left_outer_baseline_point]
-    leftmost = all(x(L.left_outer_baseline_point) < c.x for c in others)
-    others = [c for lbl, c in p.items() if lbl is not L.right_outer_baseline_point]
-    rightmost = all(x(L.right_outer_baseline_point) > c.x for c in others)
-    top_net_ys = (
-        y(L.left_top_netline_point),
-        y(L.middle_top_netline_point),
-        y(L.right_top_netline_point),
+
+    service_opposite = (
+        L.left_service_point_opposite,
+        L.left_centre_service_point_opposite,
+        L.right_centre_service_point_opposite,
+        L.right_service_point_opposite,
     )
-    netline_ys = (
-        y(L.left_outer_netline_point),
-        y(L.left_inner_netline_point),
-        y(L.left_service_netline_point),
-        y(L.right_service_netline_point),
-        y(L.right_inner_netline_point),
-        y(L.right_outer_netline_point),
+
+    baseline_opposite = (
+        L.left_outer_baseline_point_opposite,
+        L.left_inner_baseline_point_opposite,
+        L.right_inner_baseline_point_opposite,
+        L.right_outer_baseline_point_opposite,
     )
-    service_ys = (
-        y(L.left_service_point),
-        y(L.left_centre_service_point),
-        y(L.right_centre_service_point),
-        y(L.right_service_point),
+
+    # punkty na jednej linii: od lewej do prawej
+    for group in (
+        baseline,
+        service,
+        netline,
+        top_netline,
+        service_opposite,
+        baseline_opposite,
+    ):
+        check_x_increasing(*group)
+
+    # linie kortu: od góry do dołu obrazu
+    check_y(
+        baseline_opposite,
+        service_opposite,
+        top_netline,
+        netline,
+        service,
+        baseline,
     )
-    baseline_ys = (
-        y(L.left_outer_baseline_point),
-        y(L.left_inner_baseline_point),
-        y(L.right_inner_baseline_point),
-        y(L.right_outer_baseline_point),
+
+    # lewa zewnętrzna linia kortu
+    check_x_increasing(
+        L.left_outer_baseline_point,
+        L.left_outer_netline_point,
+        L.left_outer_baseline_point_opposite,
     )
-    bands_y = (
-        max(top_net_ys) < min(netline_ys)
-        and max(netline_ys) < min(service_ys)
-        and max(service_ys) < min(baseline_ys)
+
+    # prawa zewnętrzna linia kortu
+    check_x_decreasing(
+        L.right_outer_baseline_point,
+        L.right_outer_netline_point,
+        L.right_outer_baseline_point_opposite,
     )
-    flare = (
-        x(L.left_outer_netline_point) > x(L.left_outer_baseline_point)
-        and x(L.left_inner_netline_point) > x(L.left_service_point) > x(L.left_inner_baseline_point)
-        and x(L.right_inner_netline_point) < x(L.right_service_point) < x(L.right_inner_baseline_point)
-        and x(L.right_outer_netline_point) < x(L.right_outer_baseline_point)
+
+    # lewa wewnętrzna linia kortu
+    check_x_increasing(
+        L.left_inner_baseline_point,
+        L.left_service_point,
+        L.left_inner_netline_point,
+        L.left_service_point_opposite,
+        L.left_inner_baseline_point_opposite,
     )
-    return baseline_x and service_x and netline_x and top_net_x and leftmost and rightmost and bands_y and flare
+
+    # prawa wewnętrzna linia kortu
+    check_x_decreasing(
+        L.right_inner_baseline_point,
+        L.right_service_point,
+        L.right_inner_netline_point,
+        L.right_service_point_opposite,
+        L.right_inner_baseline_point_opposite,
+    )
+
+    return sorted(label.value for label in bad)
 
 
 POINT_WEIGHTS = {
@@ -410,3 +457,53 @@ def save_reports(
         report_df_detailed.to_excel(writer, sheet_name="Detailed", index=False)
         report_df_summary.to_excel(writer, sheet_name="Summary", index=False)
         stats_df.to_excel(writer, sheet_name="Stats", index=False)
+
+
+def put_points_on_image(
+    img: ArrayLike,
+    gt_points: dict[str, Point],
+    pred_points: dict[str, Point],
+    radius: int = 2
+) -> ArrayLike:
+    img_copy = img.copy()
+
+    for point in pred_points.values():
+        cv2.circle(img_copy, point, radius=radius, color=(0, 255, 0), thickness=-1)
+
+    for point in gt_points.values():
+        cv2.circle(img_copy, point, radius=radius, color=(255, 0, 0), thickness=-1)
+
+    return img_copy
+
+
+def put_legend_on_image(
+    img: ArrayLike,
+    mean_error: float,
+    min_error: float,
+    max_error: float,
+    std_error: float,
+    gt_color: tuple[int, int, int] = (255, 0, 0),
+    pred_color: tuple[int, int, int] = (0, 255, 0),
+) -> ArrayLike:
+    legend_width = 220
+    legend_height = 145
+
+    cv2.rectangle(img, (0, 0), (legend_width, legend_height), color=(0, 0, 0), thickness=-1)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.45
+    text_color = (255, 255, 255)
+    thickness = 1
+
+    cv2.circle(img, (12, 17), 5, gt_color, -1)
+    cv2.putText(img, "Ground truth", (25, 22), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
+    cv2.circle(img, (12, 42), 5, pred_color, -1)
+    cv2.putText(img, "Prediction", (25, 47), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
+    cv2.putText(img, f"Mean error: {mean_error:.2f}", (12, 75), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    cv2.putText(img, f"Min error: {min_error:.2f}", (12, 95), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    cv2.putText(img, f"Max error: {max_error:.2f}", (12, 115), font, font_scale, text_color, thickness, cv2.LINE_AA)
+    cv2.putText(img, f"Std error: {std_error:.2f}", (12, 135), font, font_scale, text_color, thickness, cv2.LINE_AA)
+
+    return img

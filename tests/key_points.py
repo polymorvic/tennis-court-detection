@@ -11,7 +11,9 @@ from tennis_court_detection.utils.testing import (
     build_output_dir, 
     calculate_error, 
     compose_reports,
-    save_reports
+    save_reports,
+    put_points_on_image,
+    put_legend_on_image
 )
 from tennis_court_detection.utils.helpers import (
     load_process_params, 
@@ -237,9 +239,6 @@ def run(
             for segment in segments:
                 cv2.line(img_copy, segment.start, segment.end, (255, 0, 0), 1)
 
-        cv2.imwrite(str(test_out_dir_pic / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
-        found_count += 1
-
         pred_points = detector.get_all_intersections(
             baseline_segments, 
             left_outer_segments, 
@@ -258,6 +257,18 @@ def run(
         )
 
         errors_per_point, summary_errors, stats_errors = calculate_error(ground_truth_points, pred_points)
+
+        img_copy = put_points_on_image(img_copy, ground_truth_points, pred_points)
+        img_copy = put_legend_on_image(
+            img_copy,
+            mean_error=summary_errors['all_mean_error'],
+            min_error=stats_errors['min_error'],
+            max_error=stats_errors['max_error'],
+            std_error=stats_errors['std_error']
+        )
+
+        cv2.imwrite(str(test_out_dir_pic / file.name), cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+        found_count += 1
 
         errors_per_point['image_name'] = file.name
         detail_report_rows.append(errors_per_point)
