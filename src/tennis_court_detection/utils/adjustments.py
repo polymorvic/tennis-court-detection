@@ -964,6 +964,21 @@ def adjust_slope_and_intercept_of_line_segments(
     return adjusted_segments
 
 
-# uzupelnij braki w ls jesli sa 
+def fill_line_segments_gaps(
+    segments: list[LineSegment],
+) -> list[LineSegment]:
+    filled_segments = []
+    for current_ls, next_ls in zip(segments, segments[1:]):
+        filled_segments.append(current_ls)
+
+        if next_ls.start.y < current_ls.end.y:
+            filled_segments.append(
+                LineSegment(
+                    start=current_ls.end,
+                    end=next_ls.start,
+                )
+            )
+    filled_segments.append(segments[-1])
+    return filled_segments
 
 # wyrownaj koncowki lsow
