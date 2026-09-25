@@ -13,7 +13,7 @@ from tennis_court_detection.utils.helpers import (
 from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.utils.adjustments import (
     trim_side_line_segments_to_intersection,
-    clean_side_line_segments,
+    remove_outlier_side_line_segments,
     adjust_slope_and_intercept_of_line_segments
 )
 from tennis_court_detection.court_detector import CourtDetector
@@ -221,10 +221,10 @@ def run(
         left_outer_segments = trim_side_line_segments_to_intersection(left_outer_segments, baseline_opposite_segments, img=img)
         right_outer_segments = trim_side_line_segments_to_intersection(right_outer_segments, baseline_opposite_segments, img=img)
 
-        left_inner_segments = clean_side_line_segments(left_inner_segments)
-        right_inner_segments = clean_side_line_segments(right_inner_segments)
-        left_outer_segments = clean_side_line_segments(left_outer_segments)
-        right_outer_segments = clean_side_line_segments(right_outer_segments)
+        left_inner_segments = remove_outlier_side_line_segments(left_inner_segments)
+        right_inner_segments = remove_outlier_side_line_segments(right_inner_segments)
+        left_outer_segments = remove_outlier_side_line_segments(left_outer_segments)
+        right_outer_segments = remove_outlier_side_line_segments(right_outer_segments)
 
         left_inner_segments = adjust_slope_and_intercept_of_line_segments(left_inner_segments)
         right_inner_segments = adjust_slope_and_intercept_of_line_segments(right_inner_segments)

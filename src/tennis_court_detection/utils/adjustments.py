@@ -907,7 +907,7 @@ def trim_side_line_segments_to_intersection(
     return base_segments[:inters_index + 1]
 
 
-def clean_side_line_segments(
+def remove_outlier_side_line_segments(
     segments: list[LineSegment],
 ) -> list[LineSegment]:
     x_diffs = [abs(current_ls.start.x - next_ls.start.x) 
