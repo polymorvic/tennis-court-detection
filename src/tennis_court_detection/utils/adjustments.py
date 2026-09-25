@@ -11,7 +11,7 @@ from scipy.ndimage import median_filter
 from tennis_court_detection.config import get_debug_mode, set_debug_mode
 from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.filters import filter_horizontal_lines
-from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img
+from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img, find_line_segments_intersection
 from tennis_court_detection.utils.validators import check_if_numpy_image, exceeds_empty_threshold
 from tennis_court_detection.schemas.config import Direction, LinePosition
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
@@ -895,3 +895,14 @@ def traverse_v_shaped_line_pairs(
         line_segments.append(ls)
 
     return line_segments
+
+
+def trim_side_line_segments(
+    base_segments: list[LineSegment],
+    crossing_segments: list[LineSegment],
+    img: ArrayLike
+) -> list[LineSegment]:
+    intersections = find_line_segments_intersection(base_segments, crossing_segments, img)
+    inters_index = base_segments.index(intersections[1])
+    return base_segments[:inters_index + 1]
+
