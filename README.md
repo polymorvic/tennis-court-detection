@@ -1,4 +1,4 @@
-# Wykrywanie obszaru i punków kluczowych kortu tenisowego
+# Wykrywanie obszaru i punktów kluczowych kortu tenisowego
 
 
 ## Problem
