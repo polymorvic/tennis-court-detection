@@ -906,3 +906,19 @@ def trim_side_line_segments(
     inters_index = base_segments.index(intersections[1])
     return base_segments[:inters_index + 1]
 
+
+def clean_side_line_segments(
+    segments: list[LineSegment],
+) -> list[LineSegment]:
+    x_diffs = [abs(current_ls.start.x - next_ls.start.x) 
+               for current_ls, next_ls in zip(segments, segments[1:])]
+    x_diff_median = np.median(x_diffs)
+    x_diff_std = np.ceil(np.std(x_diffs))
+    x_diff_interval = (x_diff_median - x_diff_std, x_diff_median + x_diff_std)
+
+    cleaned_segments = [segments[0]]
+    for ls, x_diff in zip(segments[1:], x_diffs):
+        if x_diff_interval[0] <= x_diff <= x_diff_interval[1]:
+            cleaned_segments.append(ls)
+    return cleaned_segments
+
