@@ -11,7 +11,7 @@ from cvgeomkit.geometry.points import transform_point, Point
 from cvgeomkit.geometry.intersections import compute_intersections, Intersection, transform_intersection
 from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 
-from tennis_court_detection.schemas.config import LinePosition, ServiceSide, Surface, Direction
+from tennis_court_detection.schemas.config import LinePosition, Surface, Direction
 from tennis_court_detection.utils.helpers import (
     crop_center_img,
     get_intercept_from_neighbour,
