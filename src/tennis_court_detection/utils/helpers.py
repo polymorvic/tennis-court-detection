@@ -840,3 +840,24 @@ def transform_points(
         
     return transformed_points
 
+
+def split_horizontal_line_segments(
+    segments: list[LineSegment],
+    split_ratio: int = 2,
+) -> list[LineSegment]:
+    splitted_segments = []
+    for segment in segments:
+        original_segment_width = segment.end.x - segment.start.x
+        segment_width = int(np.ceil((original_segment_width) / split_ratio))
+
+        for i in range(split_ratio):
+
+            new_ls = LineSegment.from_points(
+                Point(segment.start.x + i * segment_width,
+                    segment.start.y),
+                Point(segment.start.x + (i + 1) * segment_width,
+                    segment.end.y)
+            )
+            splitted_segments.append(new_ls)
+        
+    return splitted_segments
