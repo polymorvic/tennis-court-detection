@@ -11,7 +11,12 @@ from scipy.ndimage import median_filter
 from tennis_court_detection.config import get_debug_mode, set_debug_mode
 from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.filters import filter_horizontal_lines
-from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img, find_line_segments_intersection
+from tennis_court_detection.utils.helpers import (
+    make_odd_kernel_size, 
+    lines_from_gray_img, 
+    find_line_segments_intersection,
+    split_horizontal_line_segments
+)
 from tennis_court_detection.utils.validators import check_if_numpy_image, exceeds_empty_threshold
 from tennis_court_detection.schemas.config import Direction, LinePosition
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
@@ -1010,4 +1015,74 @@ def clean_side_line_segments(
 
     return clean_segments
 
-# wyrownaj koncowki lsow
+
+def adjust_horizontal_line_segments(
+    segments: list[LineSegment],
+    img: ArrayLike,
+    split_ratio: int = 2,
+    height_offset_px: int = 5,
+    bilateral_filter_diameter: int = 5,
+    bilateral_filter_sigma_color: int = 75,
+    bilateral_filter_sigma_space: int = 75,
+    canny_thresh_lower: int = 20,
+    canny_thresh_upper: int = 100,
+    hough_thresh: int = 10,
+    min_line_len_ratio: float = 0.3,
+    max_line_gap_ratio: float = 0
+) -> tuple[list[LineSegment], list[LineSegment]]:
+    splitted_segments = split_horizontal_line_segments(segments, split_ratio=split_ratio)
+
+    out_segments = []
+    for segment in splitted_segments:
+
+        y = (segment.start.y + segment.end.y) // 2
+        roi = img[y-height_offset_px:y+height_offset_px, segment.start.x:segment.end.x]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        roi_blur = cv2.bilateralFilter(
+            roi_gray, 
+            bilateral_filter_diameter, 
+            bilateral_filter_sigma_color,
+            bilateral_filter_sigma_space
+        )
+
+        lines = lines_from_gray_img(
+            roi_blur, 
+            canny_thresh_lower, 
+            canny_thresh_upper, 
+            hough_thresh=hough_thresh, 
+            min_line_len_px=int(min_line_len_ratio * roi_blur.shape[1]), 
+            max_line_gap_px=int(max_line_gap_ratio * roi_blur.shape[1])
+        )
+
+        lines = [line for line in lines if line.slope is not None and abs(line.slope) < 1]
+
+        if not lines:
+            out_segments.append(None)
+            continue
+
+        local_line = sorted(lines, key=lambda line: line.intercept)[-1]
+        p_start_local, p_end_local = sorted(local_line.limit_to_img(roi), key=lambda p: p.x)
+
+        p_start_global = transform_point(p_start_local, segment.start.x, y-height_offset_px)
+        p_end_global = transform_point(p_end_local, segment.start.x, y-height_offset_px)
+
+        if get_debug_mode():
+            roi_copy = roi.copy()
+            for line in lines:
+                p1, p2 = line.limit_to_img(roi)
+                cv2.line(roi_copy, p1, p2, (0, 255, 0), 1)
+
+            display_img(roi_copy)
+            display_img(roi_blur)
+            display_img(roi)
+
+        global_segment = LineSegment.from_points(p_start_global, p_end_global)
+        out_segments.append(global_segment)
+
+    if get_debug_mode():
+        img_copy = img.copy()
+        for segment in out_segments:
+            cv2.line(img_copy, segment.start, segment.end, (0, 255, 0), 1)
+        display_img(img_copy)
+
+    return out_segments, splitted_segments
