@@ -4,7 +4,7 @@ from cvgeomkit.common import ArrayLike, Numeric, NumpyImage
 from cvgeomkit.geometry.points import Point
 from cvgeomkit.geometry.segments import LineSegment, transform_line_segment
 from cvgeomkit.geometry.intersections import Intersection, transform_intersection
-from tennis_court_detection.schemas.config import Axis, ServiceSide
+from tennis_court_detection.schemas.config import Axis, Direction
 from cvgeomkit.geometry.lines import Line, transform_line
 from cvgeomkit.utils.plotting import display_img
 
@@ -83,16 +83,16 @@ def filter_service_intersections(
     intersections: set[Intersection],
     service_lines: list[Line],
     centre_lines: list[Line],
-    service_side: ServiceSide,
+    service_side: Direction,
     angle_tol: float = 5,
 ) -> tuple[Line, Line, Point] | None:
     h_line = max(service_lines, key=lambda line: line.intercept)
     h_key = h_line._key_()
 
-    if service_side == ServiceSide.LEFT:
+    if service_side == Direction.LEFT:
         v_line = max(centre_lines, key=lambda line: line.xv)
 
-    elif service_side == ServiceSide.RIGHT:
+    elif service_side == Direction.RIGHT:
         v_line = min(centre_lines, key=lambda line: line.xv)
     
     v_key = v_line._key_()
