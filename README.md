@@ -31,12 +31,15 @@ Znalezione segmenty ograniczające obszar kortu i wyznaczające kluczowe jego pu
 
 ### Segmenty horyzontalne
 
-### Wyrównywanie końcówek segmentów wg punktów przecięcia z przeciwległą kolekcją
+### Dopasowanie końców segmentów do punktów przecięcia
 Dotyczy zarówno segmentów horyzontalnych kortu jak i linii bocznych - chodzi o to, aby ograniczyć kolekcję segmentów dokładnie do punktu przecięcia. Można wyróżnić dwa typy sytuacji:
 
 1. wydłużenie segmentu do punktu przecięcia - tam, gdzie obie kolekcje się wizualnie nie przecinają
 
 2. skrócenie segmentu - gdy segment zaczyna się lub kończy poza punktem przecięcia
+
+
+Należy jednak pamiętać, że kwestia ta ma przede wszystkim znaczenie wizualne. Funkcja `find_line_segments_intersection` wyznacza punkt przecięcia prostych odpowiadających segmentom, a nie tylko ich fizycznych odcinków. Jeżeli punkt przecięcia należy do obu segmentów, funkcja zwraca go bezpośrednio. W przeciwnym razie spośród wszystkich znalezionych przecięć wybiera to, dla którego odległość między środkami odpowiadających segmentów jest najmniejsza. Dzięki temu może znaleźć przecięcie również wtedy, gdy segmenty nie stykają się bezpośrednio na obrazie.
 
 
 ## Testy
