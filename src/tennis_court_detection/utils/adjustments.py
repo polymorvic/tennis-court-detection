@@ -991,4 +991,23 @@ def fill_line_segments_gaps(
     filled_segments.append(segments[-1])
     return filled_segments
 
+
+def clean_side_line_segments(
+    left_inner_segments: list[LineSegment],
+    right_inner_segments: list[LineSegment],
+    left_outer_segments: list[LineSegment],
+    right_outer_segments: list[LineSegment],
+    baseline_opposite_segments: list[LineSegment],
+    img: ArrayLike,
+) -> tuple[list[LineSegment], list[LineSegment], list[LineSegment], list[LineSegment]]:
+    clean_segments = []
+    for segments in [left_inner_segments, right_inner_segments, left_outer_segments, right_outer_segments]:
+       segments = trim_side_line_segments_to_intersection(segments, baseline_opposite_segments, img=img)
+       segments = remove_outlier_side_line_segments(segments)
+       segments = adjust_segments_by_line(segments)
+       segments = fill_line_segments_gaps(segments)
+       clean_segments.append(segments)
+
+    return clean_segments
+
 # wyrownaj koncowki lsow
