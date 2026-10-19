@@ -11,7 +11,12 @@ from scipy.ndimage import median_filter
 from tennis_court_detection.config import get_debug_mode, set_debug_mode
 from tennis_court_detection.schemas.court import HalfLine
 from tennis_court_detection.utils.filters import filter_horizontal_lines
-from tennis_court_detection.utils.helpers import make_odd_kernel_size, lines_from_gray_img
+from tennis_court_detection.utils.helpers import (
+    make_odd_kernel_size, 
+    lines_from_gray_img, 
+    find_line_segments_intersection,
+    split_horizontal_line_segments
+)
 from tennis_court_detection.utils.validators import check_if_numpy_image, exceeds_empty_threshold
 from tennis_court_detection.schemas.config import Direction, LinePosition
 from tennis_court_detection.utils.errors import NotEnoughLineSegmentsFound
@@ -895,3 +900,189 @@ def traverse_v_shaped_line_pairs(
         line_segments.append(ls)
 
     return line_segments
+
+
+def trim_side_line_segments_to_intersection(
+    base_segments: list[LineSegment],
+    crossing_segments: list[LineSegment],
+    img: ArrayLike
+) -> list[LineSegment]:
+    intersections = find_line_segments_intersection(base_segments, crossing_segments, img)
+    inters_index = base_segments.index(intersections[1])
+    return base_segments[:inters_index + 1]
+
+
+def remove_outlier_side_line_segments(
+    segments: list[LineSegment],
+) -> list[LineSegment]:
+    x_diffs = [abs(current_ls.start.x - next_ls.start.x) 
+               for current_ls, next_ls in zip(segments, segments[1:])]
+    x_diff_median = np.median(x_diffs)
+    x_diff_std = np.ceil(np.std(x_diffs))
+    x_diff_interval = (x_diff_median - x_diff_std, x_diff_median + x_diff_std)
+
+    cleaned_segments = [segments[0]]
+    for ls, x_diff in zip(segments[1:], x_diffs):
+        if x_diff_interval[0] <= x_diff <= x_diff_interval[1]:
+            cleaned_segments.append(ls)
+    return cleaned_segments
+
+
+def adjust_segments_by_line(
+    segments: list[LineSegment],
+) -> list[LineSegment]:
+    non_vertical_segments = [
+        ls for ls in segments
+        if ls.line.slope is not None and ls.line.intercept is not None
+    ]
+
+    line_slope_median = np.median([ls.line.slope for ls in non_vertical_segments])
+    line_slope_std = np.std([ls.line.slope for ls in non_vertical_segments])
+
+    line_intercept_median = np.median([ls.line.intercept for ls in non_vertical_segments])
+    line_intercept_std = np.std([ls.line.intercept for ls in non_vertical_segments])
+
+    slope_interval = (line_slope_median - line_slope_std, line_slope_median + line_slope_std)
+    intercept_interval = (line_intercept_median - line_intercept_std, line_intercept_median + line_intercept_std)
+
+    def is_valid(ls):
+        if ls.line.slope is None or ls.line.intercept is None:
+            return False
+
+        return (
+            slope_interval[0] <= ls.line.slope <= slope_interval[1]
+            and intercept_interval[0] <= ls.line.intercept <= intercept_interval[1]
+        )
+
+    adjusted_segments = []
+    i = 0
+
+    while i < len(segments):
+        if is_valid(segments[i]):
+            adjusted_segments.append(segments[i])
+            i += 1
+            continue
+
+        i += 1
+        while i < len(segments) and not is_valid(segments[i]):
+            i += 1
+
+        if adjusted_segments and i < len(segments):
+            start = adjusted_segments[-1].end
+            end = segments[i].start
+
+            if start != end:
+                adjusted_segments.append(
+                    LineSegment(start=start, end=end)
+                )
+
+    return adjusted_segments
+
+
+def fill_line_segments_gaps(
+    segments: list[LineSegment],
+) -> list[LineSegment]:
+    filled_segments = []
+    for current_ls, next_ls in zip(segments, segments[1:]):
+        filled_segments.append(current_ls)
+
+        if next_ls.start.y < current_ls.end.y:
+            filled_segments.append(
+                LineSegment(
+                    start=current_ls.end,
+                    end=next_ls.start,
+                )
+            )
+    filled_segments.append(segments[-1])
+    return filled_segments
+
+
+def clean_side_line_segments(
+    left_inner_segments: list[LineSegment],
+    right_inner_segments: list[LineSegment],
+    left_outer_segments: list[LineSegment],
+    right_outer_segments: list[LineSegment],
+    baseline_opposite_segments: list[LineSegment],
+    img: ArrayLike,
+) -> tuple[list[LineSegment], list[LineSegment], list[LineSegment], list[LineSegment]]:
+    clean_segments = []
+    for segments in [left_inner_segments, right_inner_segments, left_outer_segments, right_outer_segments]:
+       segments = trim_side_line_segments_to_intersection(segments, baseline_opposite_segments, img=img)
+       segments = remove_outlier_side_line_segments(segments)
+       segments = adjust_segments_by_line(segments)
+       segments = fill_line_segments_gaps(segments)
+       clean_segments.append(segments)
+
+    return clean_segments
+
+
+def adjust_horizontal_line_segments(
+    segments: list[LineSegment],
+    img: ArrayLike,
+    split_ratio: int = 2,
+    height_offset_px: int = 5,
+    bilateral_filter_diameter: int = 5,
+    bilateral_filter_sigma_color: int = 75,
+    bilateral_filter_sigma_space: int = 75,
+    canny_thresh_lower: int = 20,
+    canny_thresh_upper: int = 100,
+    hough_thresh: int = 10,
+    min_line_len_ratio: float = 0.3,
+    max_line_gap_ratio: float = 0
+) -> tuple[list[LineSegment], list[LineSegment]]:
+    splitted_segments = split_horizontal_line_segments(segments, split_ratio=split_ratio)
+
+    out_segments = []
+    for segment in splitted_segments:
+
+        y = (segment.start.y + segment.end.y) // 2
+        roi = img[y-height_offset_px:y+height_offset_px, segment.start.x:segment.end.x]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        roi_blur = cv2.bilateralFilter(
+            roi_gray, 
+            bilateral_filter_diameter, 
+            bilateral_filter_sigma_color,
+            bilateral_filter_sigma_space
+        )
+
+        lines = lines_from_gray_img(
+            roi_blur, 
+            canny_thresh_lower, 
+            canny_thresh_upper, 
+            hough_thresh=hough_thresh, 
+            min_line_len_px=int(min_line_len_ratio * roi_blur.shape[1]), 
+            max_line_gap_px=int(max_line_gap_ratio * roi_blur.shape[1])
+        )
+
+        lines = [line for line in lines if line.slope is not None and abs(line.slope) < 1]
+
+        if not lines:
+            #out_segments.append(None)
+            continue
+
+        local_line = sorted(lines, key=lambda line: line.intercept)[-1]
+        p_start_local, p_end_local = sorted(local_line.limit_to_img(roi), key=lambda p: p.x)
+
+        p_start_global = transform_point(p_start_local, segment.start.x, y-height_offset_px)
+        p_end_global = transform_point(p_end_local, segment.start.x, y-height_offset_px)
+
+        if get_debug_mode():
+            roi_copy = roi.copy()
+            for line in lines:
+                p1, p2 = line.limit_to_img(roi)
+                cv2.line(roi_copy, p1, p2, (0, 255, 0), 1)
+
+            display_img(roi_copy)
+            display_img(roi_blur)
+            display_img(roi)
+
+        global_segment = LineSegment.from_points(p_start_global, p_end_global)
+        out_segments.append(global_segment)
+
+    if get_debug_mode():
+        img_copy = img.copy()
+        for segment in out_segments:
+            cv2.line(img_copy, segment.start, segment.end, (0, 255, 0), 1)
+        display_img(img_copy)
+
+    return out_segments, splitted_segments

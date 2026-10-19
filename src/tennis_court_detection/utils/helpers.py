@@ -46,7 +46,7 @@ def lines_from_gray_img(
     min_line_len_px: int,
     max_line_gap_px: float,
     return_canny: bool = False
-) -> list[Line] | None:
+) -> list[Line]:
     img = check_if_numpy_image(img)
     edges = cv2.Canny(img, canny_lower_thresh, canny_upper_thresh)
     segments = cv2.HoughLinesP(
@@ -644,6 +644,25 @@ def find_line_segments_intersection(
     return None, None, None
 
 
+def find_all_line_segments_intersections(
+    line_segments1: list[LineSegment], 
+    line_segments2: list[LineSegment], 
+    img: ArrayLike
+ ) -> tuple[Intersection, LineSegment, LineSegment] | tuple[None, None, None]:
+    intersections = []
+    for ls1 in line_segments1:
+        for ls2 in line_segments2:
+            intersection = ls1.line.intersection(ls2.line, img)
+
+            if intersection is None:
+                continue
+
+            if point_in_segment(intersection, ls1) and point_in_segment(intersection, ls2):
+                intersections.append((intersection, ls1, ls2))
+
+    return intersections
+
+
 def create_reference_court(
     ref_img_height: int = 25_000, 
     ref_img_width: int = 11_000, 
@@ -821,3 +840,24 @@ def transform_points(
         
     return transformed_points
 
+
+def split_horizontal_line_segments(
+    segments: list[LineSegment],
+    split_ratio: int = 2,
+) -> list[LineSegment]:
+    splitted_segments = []
+    for segment in segments:
+        original_segment_width = segment.end.x - segment.start.x
+        segment_width = int(np.ceil((original_segment_width) / split_ratio))
+
+        for i in range(split_ratio):
+
+            new_ls = LineSegment.from_points(
+                Point(segment.start.x + i * segment_width,
+                    segment.start.y),
+                Point(segment.start.x + (i + 1) * segment_width,
+                    segment.end.y)
+            )
+            splitted_segments.append(new_ls)
+        
+    return splitted_segments

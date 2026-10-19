@@ -8,3 +8,4 @@ class TestType(StrEnum):
     CENTRE_SERVICE_POINT = 'centre_service_point'
     KEY_POINTS = 'key_points'
     ANNOTATIONS = 'annotations'
+    DRAWING = 'drawing'

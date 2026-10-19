@@ -3,16 +3,6 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, model_validator
 
 
-class ServiceSide(StrEnum):
-    LEFT = 'left'
-    RIGHT = 'right'
-
-
-class MatchType(StrEnum):
-    SINGLES = "singles"
-    DOUBLES = "doubles"
-
-
 class Surface(StrEnum):
     CLAY = "clay"
     GRASS = "grass"
@@ -33,12 +23,6 @@ class LinePosition(StrEnum):
     TOP = "top"
     BOTTOM = "bottom"
     
-
-class MatchParams(BaseModel):
-    service_side: ServiceSide
-    match_type: MatchType
-    surface: Surface
-
 
 class BasicParams(BaseModel):
     roi_height_ratio: float = Field(default=0.075, gt=0, le=1.0)
@@ -86,7 +70,6 @@ class DetectionParams(BaseModel):
 
 
 class Params(BaseModel):
-    match_params: MatchParams
     detection_params: DetectionParams
 
 
