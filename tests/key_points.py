@@ -1,5 +1,6 @@
 import tyro
 import cv2
+from datetime import datetime
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -19,6 +20,7 @@ from tennis_court_detection.utils.helpers import (
     load_process_params, 
     compute_intersections_for_line
 )
+from tennis_court_detection.utils.adjustments import adjust_horizontal_line_segments, clean_side_line_segments
 from tennis_court_detection.schemas.testing import TestType
 from tennis_court_detection.court_detector import CourtDetector
 from tennis_court_detection.utils.testing import get_surface_from_filename
@@ -229,6 +231,14 @@ def run(
         else:
             left_centre_service_line_segments_opposite, right_centre_service_line_segments_opposite = service_lines_opposite_results
 
+        # clean sidelines
+        left_inner_segments, right_inner_segments, left_outer_segments, right_outer_segments = clean_side_line_segments(
+            left_inner_segments, right_inner_segments, left_outer_segments, right_outer_segments, baseline_opposite_segments, img)
+
+        # # clean horizontal segments
+        baseline_segments, _ = adjust_horizontal_line_segments(baseline_segments, img)
+        service_line_segments, _ = adjust_horizontal_line_segments(service_line_segments, img)
+
         img_copy = img.copy()
         for segments in [baseline_segments, left_outer_segments, 
                         left_inner_segments, right_inner_segments, right_outer_segments,
@@ -278,7 +288,7 @@ def run(
         summary_report_rows.append(combined_errors)
 
     report_df_detailed, report_df_summary, stats_df = compose_reports(detail_report_rows, summary_report_rows)
-    save_reports(report_df_detailed, report_df_summary, stats_df, str(test_out_dir / "results.xlsx"))
+    save_reports(report_df_detailed, report_df_summary, stats_df, str(test_out_dir / f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"))
     
     print(f"Found count: {found_count}")
     print(f"Not found count: {len(not_found)}, {len(not_found) / (found_count + len(not_found))}")
