@@ -1057,7 +1057,7 @@ def adjust_horizontal_line_segments(
         lines = [line for line in lines if line.slope is not None and abs(line.slope) < 1]
 
         if not lines:
-            out_segments.append(None)
+            #out_segments.append(None)
             continue
 
         local_line = sorted(lines, key=lambda line: line.intercept)[-1]
